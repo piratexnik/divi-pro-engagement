@@ -23,6 +23,7 @@ final class Updater {
 
 	private function __construct() {
 		add_filter( 'pre_set_site_transient_update_plugins', [ $this, 'check_for_plugin_update' ] );
+		add_filter( 'site_transient_update_plugins', [ $this, 'filter_site_transient_update_plugins' ] );
 		add_filter( 'plugins_api', [ $this, 'plugin_info_popup' ], 20, 3 );
 		add_filter( 'upgrader_source_selection', [ $this, 'fix_source_folder' ], 10, 4 );
 		add_action( 'upgrader_process_complete', [ $this, 'purge_cache_after_update' ], 10, 2 );
@@ -32,7 +33,7 @@ final class Updater {
 	}
 
 	/**
-	 * Hook into update transient to inject new versions from GitHub.
+	 * Hook into update transient before saving to inject new versions from GitHub.
 	 *
 	 * @param mixed $transient Transient data object.
 	 * @return mixed
@@ -48,15 +49,10 @@ final class Updater {
 		}
 
 		$remote_version = ltrim( (string) $release['version'], 'vV' );
+		$local_version  = $this->get_installed_version();
+		$plugin_slug    = dirname( DPC_BASENAME );
 
-		if ( ! function_exists( 'get_plugin_data' ) ) {
-			require_once ABSPATH . 'wp-admin/includes/plugin.php';
-		}
-		$plugin_data   = get_plugin_data( DPC_PATH . 'divi-pro-engagement.php', false, false );
-		$local_version = ! empty( $plugin_data['Version'] ) ? (string) $plugin_data['Version'] : DPC_VERSION;
-
-		$plugin_slug = dirname( DPC_BASENAME );
-		$item        = (object) [
+		$item = (object) [
 			'id'            => $plugin_slug,
 			'slug'          => $plugin_slug,
 			'plugin'        => DPC_BASENAME,
@@ -71,6 +67,13 @@ final class Updater {
 			'compatibility' => new \stdClass(),
 		];
 
+		if ( ! isset( $transient->response ) || ! is_array( $transient->response ) ) {
+			$transient->response = [];
+		}
+		if ( ! isset( $transient->no_update ) || ! is_array( $transient->no_update ) ) {
+			$transient->no_update = [];
+		}
+
 		if ( version_compare( $remote_version, $local_version, '>' ) ) {
 			$transient->response[ DPC_BASENAME ] = $item;
 			unset( $transient->no_update[ DPC_BASENAME ] );
@@ -80,6 +83,51 @@ final class Updater {
 		}
 
 		return $transient;
+	}
+
+	/**
+	 * Filter update_plugins on read to ensure state consistency.
+	 *
+	 * @param mixed $transient Transient data object.
+	 * @return mixed
+	 */
+	public function filter_site_transient_update_plugins( mixed $transient ): mixed {
+		if ( ! is_object( $transient ) ) {
+			return $transient;
+		}
+
+		if ( isset( $transient->response[ DPC_BASENAME ] ) ) {
+			$local_version  = $this->get_installed_version();
+			$remote_version = (string) ( $transient->response[ DPC_BASENAME ]->new_version ?? '' );
+
+			if ( '' !== $remote_version && version_compare( $remote_version, $local_version, '<=' ) ) {
+				if ( ! isset( $transient->no_update ) || ! is_array( $transient->no_update ) ) {
+					$transient->no_update = [];
+				}
+				$transient->no_update[ DPC_BASENAME ] = $transient->response[ DPC_BASENAME ];
+				unset( $transient->response[ DPC_BASENAME ] );
+			}
+		}
+
+		return $transient;
+	}
+
+	/**
+	 * Read installed plugin version directly from disk bypassing internal memory cache.
+	 *
+	 * @return string
+	 */
+	private function get_installed_version(): string {
+		$main_file = DPC_PATH . 'divi-pro-engagement.php';
+
+		if ( file_exists( $main_file ) ) {
+			$header_content = (string) file_get_contents( $main_file, false, null, 0, 4096 );
+			if ( preg_match( '/^[ \t\/*#@]*Version:\s*([0-9\.]+)/mi', $header_content, $matches ) ) {
+				return trim( $matches[1] );
+			}
+		}
+
+		return DPC_VERSION;
 	}
 
 	/**
@@ -164,6 +212,8 @@ final class Updater {
 			'plugin' === $options['type']
 		) {
 			delete_transient( self::TRANSIENT_KEY );
+			delete_site_transient( 'update_plugins' );
+			wp_clean_plugins_cache( true );
 		}
 	}
 
@@ -206,10 +256,60 @@ final class Updater {
 			return;
 		}
 
+		// 1. Force purge our transient and WP update transients
 		delete_transient( self::TRANSIENT_KEY );
 		delete_site_transient( 'update_plugins' );
 		wp_clean_plugins_cache( true );
-		wp_update_plugins();
+
+		// 2. Query GitHub immediately with anti-cache
+		$release = $this->get_latest_release( true );
+
+		// 3. Inject result into update_plugins immediately so WP sees it without waiting
+		if ( ! empty( $release['version'] ) && ! empty( $release['download_url'] ) ) {
+			$remote_version = ltrim( (string) $release['version'], 'vV' );
+			$local_version  = $this->get_installed_version();
+			$plugin_slug    = dirname( DPC_BASENAME );
+
+			$item = (object) [
+				'id'            => $plugin_slug,
+				'slug'          => $plugin_slug,
+				'plugin'        => DPC_BASENAME,
+				'new_version'   => $remote_version,
+				'url'           => 'https://github.com/' . self::GITHUB_REPO,
+				'package'       => $release['download_url'],
+				'icons'         => [],
+				'banners'       => [],
+				'banners_rtl'   => [],
+				'tested'        => '',
+				'requires_php'  => '8.1',
+				'compatibility' => new \stdClass(),
+			];
+
+			$update_plugins = get_site_transient( 'update_plugins' );
+			if ( ! is_object( $update_plugins ) ) {
+				$update_plugins = new \stdClass();
+			}
+			if ( ! isset( $update_plugins->response ) || ! is_array( $update_plugins->response ) ) {
+				$update_plugins->response = [];
+			}
+			if ( ! isset( $update_plugins->no_update ) || ! is_array( $update_plugins->no_update ) ) {
+				$update_plugins->no_update = [];
+			}
+
+			if ( version_compare( $remote_version, $local_version, '>' ) ) {
+				$update_plugins->response[ DPC_BASENAME ] = $item;
+				unset( $update_plugins->no_update[ DPC_BASENAME ] );
+			} else {
+				unset( $update_plugins->response[ DPC_BASENAME ] );
+				$update_plugins->no_update[ DPC_BASENAME ] = $item;
+			}
+
+			$update_plugins->last_checked = time();
+			$update_plugins->checked      = [ DPC_BASENAME => $local_version ];
+			set_site_transient( 'update_plugins', $update_plugins );
+		} else {
+			wp_update_plugins();
+		}
 
 		wp_safe_redirect( admin_url( 'plugins.php?dpc_checked=1' ) );
 		exit;
@@ -231,20 +331,30 @@ final class Updater {
 	/**
 	 * Fetch latest release from GitHub API or cache.
 	 *
+	 * @param bool $force_refresh Skip transient cache.
 	 * @return array{version: string, download_url: string, body: string}
 	 */
-	private function get_latest_release(): array {
-		$cached = get_transient( self::TRANSIENT_KEY );
-		if ( is_array( $cached ) && ! empty( $cached['version'] ) ) {
-			return $cached;
+	private function get_latest_release( bool $force_refresh = false ): array {
+		if ( ! $force_refresh ) {
+			$cached = get_transient( self::TRANSIENT_KEY );
+			if ( is_array( $cached ) && ! empty( $cached['version'] ) ) {
+				return $cached;
+			}
 		}
 
 		$headers = [
 			'Accept'        => 'application/vnd.github.v3+json',
-			'Cache-Control' => 'no-cache',
+			'Cache-Control' => 'no-cache, no-store, must-revalidate',
 			'User-Agent'    => 'WordPress/' . get_bloginfo( 'version' ) . '; DiviProEngagement/' . DPC_VERSION,
 		];
 
+		$release_data = [
+			'version'      => '',
+			'download_url' => '',
+			'body'         => '',
+		];
+
+		// 1. Check Releases
 		$url      = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/releases/latest?t=' . time();
 		$response = wp_remote_get(
 			$url,
@@ -254,18 +364,12 @@ final class Updater {
 			]
 		);
 
-		$release_data = [
-			'version'      => '',
-			'download_url' => '',
-			'body'         => '',
-		];
-
 		if ( ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response ) ) {
 			$data = json_decode( wp_remote_retrieve_body( $response ), true );
 			if ( is_array( $data ) && ! empty( $data['tag_name'] ) ) {
 				$tag            = (string) $data['tag_name'];
 				$remote_version = ltrim( $tag, 'vV' );
-				$download_url   = (string) ( $data['zipball_url'] ?? 'https://github.com/' . self::GITHUB_REPO . "/archive/refs/tags/{$tag}.zip" );
+				$download_url   = "https://github.com/" . self::GITHUB_REPO . "/archive/refs/tags/{$tag}.zip";
 
 				if ( ! empty( $data['assets'] ) && is_array( $data['assets'] ) ) {
 					foreach ( $data['assets'] as $asset ) {
@@ -284,7 +388,7 @@ final class Updater {
 			}
 		}
 
-		// Fallback to tags if releases are not published yet
+		// 2. Fallback to tags if releases are not published yet
 		if ( empty( $release_data['version'] ) ) {
 			$tags_url      = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/tags?t=' . time();
 			$tags_response = wp_remote_get(
@@ -300,7 +404,7 @@ final class Updater {
 				if ( is_array( $tags_data ) && ! empty( $tags_data[0]['name'] ) ) {
 					$tag            = (string) $tags_data[0]['name'];
 					$remote_version = ltrim( $tag, 'vV' );
-					$download_url   = (string) ( $tags_data[0]['zipball_url'] ?? 'https://github.com/' . self::GITHUB_REPO . "/archive/refs/tags/{$tag}.zip" );
+					$download_url   = "https://github.com/" . self::GITHUB_REPO . "/archive/refs/tags/{$tag}.zip";
 
 					$release_data = [
 						'version'      => $remote_version,
