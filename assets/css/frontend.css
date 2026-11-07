@@ -111,6 +111,51 @@
 	box-shadow: 0 4px 8px rgba(24, 119, 242, 0.25);
 }
 
+/* Telegram Brand Button & Widget Overlay */
+.dpc-btn-telegram-wrapper {
+	position: relative;
+	display: inline-flex;
+	border-radius: 8px;
+	transition: transform 0.15s ease;
+}
+
+.dpc-btn-telegram-wrapper:hover {
+	transform: translateY(-1px);
+}
+
+.dpc-btn-telegram {
+	background-color: #2AABEE;
+	color: #ffffff !important;
+	border: 1px solid #1e96d4;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+	pointer-events: none;
+}
+
+.dpc-btn-telegram-wrapper:hover .dpc-btn-telegram {
+	background-color: #229ED9;
+	border-color: #1a86bd;
+	box-shadow: 0 4px 8px rgba(42, 171, 238, 0.25);
+}
+
+.dpc-telegram-widget-overlay {
+	opacity: 0.01;
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 2;
+	cursor: pointer;
+}
+
+.dpc-telegram-widget-overlay iframe {
+	width: 100% !important;
+	height: 100% !important;
+	transform: scale(1.5);
+	cursor: pointer;
+}
+
 /* Logged-in User Compact Box */
 .dpc-user-logged {
 	display: flex;
@@ -167,7 +212,8 @@
 		align-items: stretch;
 	}
 
-	.dpc-social-btn {
+	.dpc-social-btn,
+	.dpc-btn-telegram-wrapper {
 		width: 100%;
 	}
 

@@ -6,6 +6,7 @@ namespace DiviProEngagement\Modules\Auth;
 use DiviProEngagement\Modules\Auth\Providers\GoogleProvider;
 use DiviProEngagement\Modules\Auth\Providers\DiscordProvider;
 use DiviProEngagement\Modules\Auth\Providers\FacebookProvider;
+use DiviProEngagement\Modules\Auth\Providers\TelegramProvider;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -118,8 +119,27 @@ final class AuthManager {
 	 */
 	public function handle_auth_callback( \WP_REST_Request $request ): mixed {
 		$provider_name = (string) $request->get_param( 'provider' );
-		$state         = sanitize_text_field( (string) $request->get_param( 'state' ) );
-		$code          = sanitize_text_field( (string) $request->get_param( 'code' ) );
+
+		if ( 'telegram' === $provider_name ) {
+			$raw_redirect = (string) $request->get_param( 'redirect_to' );
+			$redirect_to  = '' !== $raw_redirect
+				? wp_validate_redirect( esc_url_raw( $raw_redirect ), home_url() )
+				: home_url();
+
+			$telegram = new TelegramProvider();
+			$profile  = $telegram->verify_and_get_profile( $request->get_query_params() );
+
+			if ( is_wp_error( $profile ) || empty( $profile['social_id'] ) ) {
+				wp_safe_redirect( $redirect_to );
+				exit;
+			}
+
+			$this->login_or_register_user( $profile, 'telegram', $redirect_to );
+			exit;
+		}
+
+		$state = sanitize_text_field( (string) $request->get_param( 'state' ) );
+		$code  = sanitize_text_field( (string) $request->get_param( 'code' ) );
 
 		if ( '' === $state || '' === $code ) {
 			wp_safe_redirect( home_url() );
@@ -344,8 +364,11 @@ final class AuthManager {
 		$google   = new GoogleProvider();
 		$discord  = new DiscordProvider();
 		$facebook = new FacebookProvider();
+		$telegram = new TelegramProvider();
 
-		$has_active_provider = $google->is_configured() || $discord->is_configured() || $facebook->is_configured();
+		$telegram_enabled = (bool) dpc_get_option( 'auth_telegram_enable', false ) && '' !== $telegram->get_bot_username();
+
+		$has_active_provider = $google->is_configured() || $discord->is_configured() || $facebook->is_configured() || $telegram_enabled;
 		if ( ! $has_active_provider ) {
 			return '';
 		}
@@ -376,6 +399,30 @@ final class AuthManager {
 						</span>
 						<span class="dpc-social-btn__text">Google</span>
 					</a>
+				<?php endif; ?>
+
+				<?php if ( $telegram_enabled ) : ?>
+					<?php $telegram_callback_url = $telegram->get_callback_url( $current_url ); ?>
+					<div class="dpc-btn-telegram-wrapper">
+						<span class="dpc-social-btn dpc-btn-telegram" aria-hidden="true">
+							<span class="dpc-social-btn__icon">
+								<svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
+									<path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" fill="#ffffff"/>
+								</svg>
+							</span>
+							<span class="dpc-social-btn__text">Telegram</span>
+						</span>
+						<div class="dpc-telegram-widget-overlay">
+							<script
+								async
+								src="https://telegram.org/js/telegram-widget.js?22"
+								data-telegram-login="<?php echo esc_attr( $telegram->get_bot_username() ); ?>"
+								data-size="large"
+								data-auth-url="<?php echo esc_url( $telegram_callback_url ); ?>"
+								data-request-access="write"
+							></script>
+						</div>
+					</div>
 				<?php endif; ?>
 
 				<?php if ( $discord->is_configured() ) : ?>
@@ -424,6 +471,7 @@ final class AuthManager {
 			'google'   => new GoogleProvider(),
 			'discord'  => new DiscordProvider(),
 			'facebook' => new FacebookProvider(),
+			'telegram' => new TelegramProvider(),
 			default    => null,
 		};
 	}
