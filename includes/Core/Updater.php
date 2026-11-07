@@ -48,8 +48,15 @@ final class Updater {
 		}
 
 		$remote_version = ltrim( (string) $release['version'], 'vV' );
-		$plugin_slug    = dirname( DPC_BASENAME );
-		$item           = (object) [
+
+		if ( ! function_exists( 'get_plugin_data' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+		$plugin_data   = get_plugin_data( DPC_PATH . 'divi-pro-engagement.php', false, false );
+		$local_version = ! empty( $plugin_data['Version'] ) ? (string) $plugin_data['Version'] : DPC_VERSION;
+
+		$plugin_slug = dirname( DPC_BASENAME );
+		$item        = (object) [
 			'id'            => $plugin_slug,
 			'slug'          => $plugin_slug,
 			'plugin'        => DPC_BASENAME,
@@ -64,7 +71,7 @@ final class Updater {
 			'compatibility' => new \stdClass(),
 		];
 
-		if ( version_compare( $remote_version, DPC_VERSION, '>' ) ) {
+		if ( version_compare( $remote_version, $local_version, '>' ) ) {
 			$transient->response[ DPC_BASENAME ] = $item;
 			unset( $transient->no_update[ DPC_BASENAME ] );
 		} else {

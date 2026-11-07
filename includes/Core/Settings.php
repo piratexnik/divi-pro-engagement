@@ -136,6 +136,7 @@ final class Settings {
 				'hide_admin_bar'      => 'checkbox',
 			],
 			'auth'     => [
+				'auth_show_in_comments'      => 'checkbox',
 				'auth_select_account'        => 'checkbox',
 				'auth_auto_link_email'       => 'checkbox',
 				'auth_disable_admin'         => 'checkbox',
@@ -209,12 +210,7 @@ final class Settings {
 		<div class="wrap dpc-wrap">
 			<h1><?php echo esc_html__( 'Divi Pro Engagement — Настройки', 'divi-pro-engagement' ); ?></h1>
 
-			<?php
-			if ( isset( $_GET['settings-updated'] ) ) {
-				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Настройки успешно сохранены.', 'divi-pro-engagement' ) . '</p></div>';
-			}
-			settings_errors();
-			?>
+			<?php settings_errors(); ?>
 
 			<nav class="nav-tab-wrapper wp-clearfix dpc-nav-tabs">
 				<?php foreach ( $tabs as $tab_id => $tab_title ) : ?>
@@ -355,12 +351,13 @@ final class Settings {
 	}
 
 	private function render_auth_tab(): void {
-		$base_callback        = home_url( '/wp-json/dpc/v1/auth/' );
-		$auth_select_account  = (int) dpc_get_option( 'auth_select_account', 1 );
-		$auth_auto_link_email = (int) dpc_get_option( 'auth_auto_link_email', 1 );
-		$auth_disable_admin   = (int) dpc_get_option( 'auth_disable_admin', 1 );
-		$auth_default_role    = (string) dpc_get_option( 'auth_default_role', 'subscriber' );
-		$allowed_roles        = $this->get_allowed_roles();
+		$base_callback         = home_url( '/wp-json/dpc/v1/auth/' );
+		$auth_show_in_comments = (int) dpc_get_option( 'auth_show_in_comments', 1 );
+		$auth_select_account   = (int) dpc_get_option( 'auth_select_account', 1 );
+		$auth_auto_link_email  = (int) dpc_get_option( 'auth_auto_link_email', 1 );
+		$auth_disable_admin    = (int) dpc_get_option( 'auth_disable_admin', 1 );
+		$auth_default_role     = (string) dpc_get_option( 'auth_default_role', 'subscriber' );
+		$allowed_roles         = $this->get_allowed_roles();
 		?>
 		<div class="dpc-card dpc-info-card">
 			<h3><?php echo esc_html__( 'Callback / Redirect URL для OAuth провайдеров', 'divi-pro-engagement' ); ?></h3>
@@ -375,6 +372,16 @@ final class Settings {
 		<!-- PRO Auth Settings -->
 		<div class="dpc-card">
 			<h2><?php echo esc_html__( 'PRO-настройки входа', 'divi-pro-engagement' ); ?></h2>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Автоматически выводить кнопки соцсетей в форме комментариев Divi', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Выводит блок соцсетей над полями формы комментариев на страницах записей. Шорткод [dpc_social_login] остается доступным в любом случае.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'auth_show_in_comments', $auth_show_in_comments ); ?>
+				</div>
+			</div>
 
 			<div class="dpc-field-row">
 				<div class="dpc-field-label">

@@ -48,8 +48,10 @@ final class Init {
 			AuthManager::get_instance();
 			Shortcodes::get_instance();
 
-			add_action( 'comment_form_before_fields', [ $this, 'render_comment_form_social_login' ] );
-			add_action( 'comment_form_must_log_in_after', [ $this, 'render_comment_form_social_login' ] );
+			if ( (bool) dpc_get_option( 'auth_show_in_comments', true ) ) {
+				add_action( 'comment_form_before_fields', [ $this, 'render_comment_form_social_login' ] );
+				add_action( 'comment_form_must_log_in_after', [ $this, 'render_comment_form_social_login' ] );
+			}
 		}
 	}
 

@@ -79,6 +79,38 @@
 	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
 }
 
+/* Discord Brand Button */
+.dpc-social-btn--discord {
+	background-color: #5865F2;
+	color: #ffffff !important;
+	border: 1px solid #4752C4;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.dpc-social-btn--discord:hover,
+.dpc-social-btn--discord:focus {
+	background-color: #4752C4;
+	border-color: #3c45a5;
+	color: #ffffff !important;
+	box-shadow: 0 4px 8px rgba(88, 101, 242, 0.25);
+}
+
+/* Facebook Brand Button */
+.dpc-social-btn--facebook {
+	background-color: #1877F2;
+	color: #ffffff !important;
+	border: 1px solid #0c63d4;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.dpc-social-btn--facebook:hover,
+.dpc-social-btn--facebook:focus {
+	background-color: #0c63d4;
+	border-color: #0a54b3;
+	color: #ffffff !important;
+	box-shadow: 0 4px 8px rgba(24, 119, 242, 0.25);
+}
+
 /* Logged-in User Compact Box */
 .dpc-user-logged {
 	display: flex;
