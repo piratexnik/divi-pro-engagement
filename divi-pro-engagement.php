@@ -3,7 +3,7 @@
  * Plugin Name:       Divi Pro Engagement
  * Plugin URI:        https://github.com/piratexnik/divi-pro-engagement
  * Description:       Advanced engagement toolkit for Divi 5: AJAX Comments, Reactions, Post Ratings with Schema.org, and Social Authentication.
- * Version:           1.0.2
+ * Version:           1.1.0
  * Author:            Piratexnik
  * Author URI:        https://github.com/piratexnik
  * License:           GPL-2.0-or-later
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DPC_VERSION', '1.0.2' );
+define( 'DPC_VERSION', '1.1.0' );
 define( 'DPC_PATH', plugin_dir_path( __FILE__ ) );
 define( 'DPC_URL', plugin_dir_url( __FILE__ ) );
 define( 'DPC_BASENAME', plugin_basename( __FILE__ ) );

@@ -26,7 +26,7 @@ final class Updater {
 		add_filter( 'plugins_api', [ $this, 'plugin_info_popup' ], 20, 3 );
 		add_filter( 'upgrader_source_selection', [ $this, 'fix_source_folder' ], 10, 4 );
 		add_filter( 'plugin_action_links_' . DPC_BASENAME, [ $this, 'add_action_links' ] );
-		add_action( 'admin_init', [ $this, 'handle_manual_update_check' ] );
+		add_action( 'admin_init', [ $this, 'check_for_updates' ] );
 		add_action( 'admin_notices', [ $this, 'render_manual_check_notice' ] );
 	}
 
@@ -46,12 +46,13 @@ final class Updater {
 			return $transient;
 		}
 
-		$plugin_slug = dirname( DPC_BASENAME );
-		$item = (object) [
+		$remote_version = ltrim( (string) $release['version'], 'vV' );
+		$plugin_slug    = dirname( DPC_BASENAME );
+		$item           = (object) [
 			'id'            => $plugin_slug,
 			'slug'          => $plugin_slug,
 			'plugin'        => DPC_BASENAME,
-			'new_version'   => $release['version'],
+			'new_version'   => $remote_version,
 			'url'           => 'https://github.com/' . self::GITHUB_REPO,
 			'package'       => $release['download_url'],
 			'icons'         => [],
@@ -62,7 +63,7 @@ final class Updater {
 			'compatibility' => new \stdClass(),
 		];
 
-		if ( version_compare( $release['version'], DPC_VERSION, '>' ) ) {
+		if ( version_compare( $remote_version, DPC_VERSION, '>' ) ) {
 			$transient->response[ DPC_BASENAME ] = $item;
 		} else {
 			$transient->no_update[ DPC_BASENAME ] = $item;
@@ -165,7 +166,7 @@ final class Updater {
 	/**
 	 * Clear cache and force update check on manual trigger.
 	 */
-	public function handle_manual_update_check(): void {
+	public function check_for_updates(): void {
 		if ( ! isset( $_GET['dpc_check_update'] ) ) {
 			return;
 		}
@@ -181,9 +182,8 @@ final class Updater {
 
 		delete_transient( self::TRANSIENT_KEY );
 		delete_site_transient( 'update_plugins' );
-
-		// Warm up release info immediately
-		$this->get_latest_release();
+		wp_clean_plugins_cache( true );
+		wp_update_plugins();
 
 		wp_safe_redirect( admin_url( 'plugins.php?dpc_update_checked=1' ) );
 		exit;
@@ -213,15 +213,18 @@ final class Updater {
 			return $cached;
 		}
 
-		$url = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/releases/latest';
+		$headers = [
+			'Accept'        => 'application/vnd.github.v3+json',
+			'Cache-Control' => 'no-cache',
+			'User-Agent'    => 'WordPress/' . get_bloginfo( 'version' ) . '; DiviProEngagement/' . DPC_VERSION,
+		];
+
+		$url      = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/releases/latest?t=' . time();
 		$response = wp_remote_get(
 			$url,
 			[
-				'timeout'    => 10,
-				'headers'    => [
-					'Accept'     => 'application/vnd.github.v3+json',
-					'User-Agent' => 'WordPress/' . get_bloginfo( 'version' ) . '; DiviProEngagement/' . DPC_VERSION,
-				],
+				'timeout' => 10,
+				'headers' => $headers,
 			]
 		);
 
@@ -234,9 +237,9 @@ final class Updater {
 		if ( ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response ) ) {
 			$data = json_decode( wp_remote_retrieve_body( $response ), true );
 			if ( is_array( $data ) && ! empty( $data['tag_name'] ) ) {
-				$tag = (string) $data['tag_name'];
-				$version = ltrim( $tag, 'vV' );
-				$download_url = (string) ( $data['zipball_url'] ?? "https://github.com/" . self::GITHUB_REPO . "/archive/refs/tags/{$tag}.zip" );
+				$tag_name       = (string) $data['tag_name'];
+				$remote_version = ltrim( $tag_name, 'vV' );
+				$download_url   = (string) ( $data['zipball_url'] ?? 'https://github.com/' . self::GITHUB_REPO . "/archive/refs/tags/{$tag_name}.zip" );
 
 				if ( ! empty( $data['assets'] ) && is_array( $data['assets'] ) ) {
 					foreach ( $data['assets'] as $asset ) {
@@ -248,7 +251,7 @@ final class Updater {
 				}
 
 				$release_data = [
-					'version'      => $version,
+					'version'      => $remote_version,
 					'download_url' => $download_url,
 					'body'         => (string) ( $data['body'] ?? '' ),
 				];
@@ -257,27 +260,24 @@ final class Updater {
 
 		// Fallback to tags if releases are not published yet
 		if ( empty( $release_data['version'] ) ) {
-			$tags_url = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/tags';
+			$tags_url      = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/tags?t=' . time();
 			$tags_response = wp_remote_get(
 				$tags_url,
 				[
-					'timeout'    => 10,
-					'headers'    => [
-						'Accept'     => 'application/vnd.github.v3+json',
-						'User-Agent' => 'WordPress/' . get_bloginfo( 'version' ) . '; DiviProEngagement/' . DPC_VERSION,
-					],
+					'timeout' => 10,
+					'headers' => $headers,
 				]
 			);
 
 			if ( ! is_wp_error( $tags_response ) && 200 === wp_remote_retrieve_response_code( $tags_response ) ) {
 				$tags_data = json_decode( wp_remote_retrieve_body( $tags_response ), true );
 				if ( is_array( $tags_data ) && ! empty( $tags_data[0]['name'] ) ) {
-					$tag = (string) $tags_data[0]['name'];
-					$version = ltrim( $tag, 'vV' );
-					$download_url = (string) ( $tags_data[0]['zipball_url'] ?? "https://github.com/" . self::GITHUB_REPO . "/archive/refs/tags/{$tag}.zip" );
+					$tag_name       = (string) $tags_data[0]['name'];
+					$remote_version = ltrim( $tag_name, 'vV' );
+					$download_url   = (string) ( $tags_data[0]['zipball_url'] ?? 'https://github.com/' . self::GITHUB_REPO . "/archive/refs/tags/{$tag_name}.zip" );
 
 					$release_data = [
-						'version'      => $version,
+						'version'      => $remote_version,
 						'download_url' => $download_url,
 						'body'         => '',
 					];

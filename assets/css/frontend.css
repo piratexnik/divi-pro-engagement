@@ -1,0 +1,145 @@
+/**
+ * Divi Pro Engagement - Frontend Styles
+ */
+
+.dpc-social-login {
+	margin: 16px 0 20px;
+	padding: 16px 20px;
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+	border-radius: 10px;
+	box-sizing: border-box;
+}
+
+.dpc-social-login__title {
+	margin: 0 0 12px;
+	font-size: 14px;
+	font-weight: 600;
+	color: #334155;
+	line-height: 1.4;
+}
+
+.dpc-social-login__buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: center;
+}
+
+.dpc-social-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	padding: 9px 18px;
+	border-radius: 8px;
+	font-size: 14px;
+	font-weight: 600;
+	line-height: 1.2;
+	text-decoration: none !important;
+	cursor: pointer;
+	transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+	box-sizing: border-box;
+}
+
+.dpc-social-btn:hover {
+	transform: translateY(-1px);
+}
+
+.dpc-social-btn:active {
+	transform: translateY(0);
+}
+
+.dpc-social-btn__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.dpc-social-btn__icon svg {
+	display: block;
+	width: 18px;
+	height: 18px;
+}
+
+/* Google Brand Button */
+.dpc-social-btn--google {
+	background-color: #ffffff;
+	color: #1f2937 !important;
+	border: 1px solid #d1d5db;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.dpc-social-btn--google:hover,
+.dpc-social-btn--google:focus {
+	background-color: #f9fafb;
+	border-color: #9ca3af;
+	color: #111827 !important;
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Logged-in User Compact Box */
+.dpc-user-logged {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin: 14px 0 18px;
+	padding: 10px 16px;
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+	border-radius: 10px;
+	box-sizing: border-box;
+}
+
+.dpc-user-logged__info {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.dpc-user-logged__avatar {
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	object-fit: cover;
+	border: 2px solid #ffffff;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.dpc-user-logged__name {
+	font-size: 14px;
+	font-weight: 600;
+	color: #1e293b;
+}
+
+.dpc-user-logged__logout {
+	font-size: 13px;
+	font-weight: 500;
+	color: #64748b !important;
+	text-decoration: none !important;
+	padding: 5px 10px;
+	border-radius: 6px;
+	transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.dpc-user-logged__logout:hover {
+	background-color: #fee2e2;
+	color: #dc2626 !important;
+}
+
+@media (max-width: 480px) {
+	.dpc-social-login__buttons {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.dpc-social-btn {
+		width: 100%;
+	}
+
+	.dpc-user-logged {
+		flex-wrap: wrap;
+	}
+}
