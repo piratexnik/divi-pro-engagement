@@ -8,6 +8,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class Settings {
+	private const OPTION_NAME = 'dpc_settings';
+	private const PAGE_SLUG   = 'dpc-settings';
+
 	private static ?self $instance = null;
 
 	public static function get_instance(): self {
@@ -20,105 +23,439 @@ final class Settings {
 	private function __construct() {
 		add_action( 'admin_menu', [ $this, 'register_menu_page' ] );
 		add_action( 'admin_init', [ $this, 'register_settings' ] );
+		add_filter( 'plugin_action_links_' . DPC_BASENAME, [ $this, 'add_settings_action_link' ] );
 	}
 
 	public function register_menu_page(): void {
-		add_options_page(
+		add_menu_page(
 			esc_html__( 'Divi Engagement', 'divi-pro-engagement' ),
 			esc_html__( 'Divi Engagement', 'divi-pro-engagement' ),
 			'manage_options',
-			'dpc-settings',
-			[ $this, 'render_settings_page' ]
+			self::PAGE_SLUG,
+			[ $this, 'render_settings_page' ],
+			'dashicons-star-filled',
+			58
 		);
 	}
 
 	public function register_settings(): void {
 		register_setting(
 			'dpc_settings_group',
-			'dpc_settings',
+			self::OPTION_NAME,
 			[
 				'type'              => 'array',
 				'sanitize_callback' => [ $this, 'sanitize_settings' ],
 				'default'           => [],
 			]
 		);
-
-		add_settings_section(
-			'dpc_main_section',
-			esc_html__( 'Основные модули', 'divi-pro-engagement' ),
-			[ $this, 'render_main_section_description' ],
-			'dpc-settings'
-		);
-
-		add_settings_field(
-			'enable_comments',
-			esc_html__( 'Улучшение комментариев Divi 5', 'divi-pro-engagement' ),
-			[ $this, 'render_checkbox_field' ],
-			'dpc-settings',
-			'dpc_main_section',
-			[
-				'id'          => 'enable_comments',
-				'label'       => esc_html__( 'Включить улучшение комментариев Divi 5 (AJAX, Лайки, Антиспам).', 'divi-pro-engagement' ),
-			]
-		);
-
-		add_settings_field(
-			'enable_post_rating',
-			esc_html__( 'Рейтинг статей', 'divi-pro-engagement' ),
-			[ $this, 'render_checkbox_field' ],
-			'dpc-settings',
-			'dpc_main_section',
-			[
-				'id'          => 'enable_post_rating',
-				'label'       => esc_html__( 'Включить рейтинг статей (Schema.org + шорткод [dpc_post_rating]).', 'divi-pro-engagement' ),
-			]
-		);
-
-		add_settings_field(
-			'enable_social_auth',
-			esc_html__( 'Авторизация через соцсети', 'divi-pro-engagement' ),
-			[ $this, 'render_checkbox_field' ],
-			'dpc-settings',
-			'dpc_main_section',
-			[
-				'id'          => 'enable_social_auth',
-				'label'       => esc_html__( 'Включить авторизацию через соцсети (шорткод [dpc_social_login]).', 'divi-pro-engagement' ),
-			]
-		);
-	}
-
-	public function sanitize_settings( mixed $input ): array {
-		$sanitized = [];
-		if ( ! is_array( $input ) ) {
-			return $sanitized;
-		}
-
-		$checkbox_keys = [
-			'enable_comments',
-			'enable_post_rating',
-			'enable_social_auth',
-		];
-
-		foreach ( $checkbox_keys as $key ) {
-			$sanitized[ $key ] = ! empty( $input[ $key ] ) ? 1 : 0;
-		}
-
-		return $sanitized;
-	}
-
-	public function render_main_section_description(): void {
-		echo '<p>' . esc_html__( 'Управляйте модулями вовлеченности для сайта и шаблонов Divi 5.', 'divi-pro-engagement' ) . '</p>';
 	}
 
 	/**
-	 * @param array<string, string> $args Field arguments.
+	 * Add "Settings" link to the plugin action links on plugins.php.
+	 *
+	 * @param array<string, string> $links Current plugin action links.
+	 * @return array<string, string>
 	 */
-	public function render_checkbox_field( array $args ): void {
-		$key = $args['id'];
-		$label = $args['label'];
-		$value = (int) dpc_get_option( $key, 0 );
+	public function add_settings_action_link( array $links ): array {
+		$settings_url  = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		$settings_link = sprintf(
+			'<a href="%s">%s</a>',
+			esc_url( $settings_url ),
+			esc_html__( 'Настройки', 'divi-pro-engagement' )
+		);
+
+		array_unshift( $links, $settings_link );
+		return $links;
+	}
+
+	/**
+	 * Sanitization callback preserving settings from other tabs.
+	 *
+	 * @param mixed $input Submitted form array.
+	 * @return array<string, mixed>
+	 */
+	public function sanitize_settings( mixed $input ): array {
+		$existing = get_option( self::OPTION_NAME, [] );
+		if ( ! is_array( $existing ) ) {
+			$existing = [];
+		}
+
+		$current_tab = isset( $_POST['dpc_current_tab'] )
+			? sanitize_key( wp_unslash( (string) $_POST['dpc_current_tab'] ) )
+			: 'general';
+
+		$input_data = is_array( $input ) ? $input : [];
+		$tab_fields = $this->get_tab_fields_schema();
+
+		if ( isset( $tab_fields[ $current_tab ] ) ) {
+			foreach ( $tab_fields[ $current_tab ] as $field_key => $field_type ) {
+				if ( 'checkbox' === $field_type ) {
+					$existing[ $field_key ] = ! empty( $input_data[ $field_key ] ) ? 1 : 0;
+				} else {
+					$existing[ $field_key ] = isset( $input_data[ $field_key ] )
+						? sanitize_text_field( wp_unslash( (string) $input_data[ $field_key ] ) )
+						: '';
+				}
+			}
+		}
+
+		return $existing;
+	}
+
+	/**
+	 * Field types schema per tab.
+	 *
+	 * @return array<string, array<string, string>>
+	 */
+	private function get_tab_fields_schema(): array {
+		return [
+			'general'  => [
+				'enable_social_auth' => 'checkbox',
+				'enable_post_rating' => 'checkbox',
+				'enable_comments'    => 'checkbox',
+			],
+			'auth'     => [
+				'auth_google_enable'        => 'checkbox',
+				'auth_google_client_id'     => 'text',
+				'auth_google_client_secret' => 'text',
+				'auth_telegram_enable'      => 'checkbox',
+				'auth_telegram_bot_username'=> 'text',
+				'auth_telegram_bot_token'   => 'text',
+				'auth_facebook_enable'      => 'checkbox',
+				'auth_facebook_app_id'      => 'text',
+				'auth_facebook_app_secret'  => 'text',
+				'auth_discord_enable'       => 'checkbox',
+				'auth_discord_client_id'    => 'text',
+				'auth_discord_client_secret'=> 'text',
+			],
+			'rating'   => [
+				'rating_type'          => 'text',
+				'rating_access'        => 'text',
+				'rating_position'      => 'text',
+				'rating_schema_enable' => 'checkbox',
+			],
+			'comments' => [
+				'comments_vote_access'      => 'text',
+				'antispam_honeypot'         => 'checkbox',
+				'antispam_turnstile_enable' => 'checkbox',
+				'turnstile_site_key'        => 'text',
+				'turnstile_secret_key'      => 'text',
+			],
+		];
+	}
+
+	public function render_settings_page(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$current_tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( (string) $_GET['tab'] ) ) : 'general';
+		$valid_tabs  = [ 'general', 'auth', 'rating', 'comments' ];
+		if ( ! in_array( $current_tab, $valid_tabs, true ) ) {
+			$current_tab = 'general';
+		}
+
+		$tabs = [
+			'general'  => esc_html__( 'Основные модули', 'divi-pro-engagement' ),
+			'auth'     => esc_html__( 'Соц. Авторизация', 'divi-pro-engagement' ),
+			'rating'   => esc_html__( 'Рейтинг статей', 'divi-pro-engagement' ),
+			'comments' => esc_html__( 'Комментарии и Антиспам', 'divi-pro-engagement' ),
+		];
+
+		$this->render_admin_styles();
 		?>
-		<label for="<?php echo esc_attr( $key ); ?>">
+		<div class="wrap dpc-wrap">
+			<h1><?php echo esc_html__( 'Divi Pro Engagement — Настройки', 'divi-pro-engagement' ); ?></h1>
+
+			<nav class="nav-tab-wrapper wp-clearfix dpc-nav-tabs">
+				<?php foreach ( $tabs as $tab_id => $tab_title ) : ?>
+					<a
+						href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&tab=' . $tab_id ) ); ?>"
+						class="nav-tab <?php echo $current_tab === $tab_id ? 'nav-tab-active' : ''; ?>"
+					>
+						<?php echo esc_html( $tab_title ); ?>
+					</a>
+				<?php endforeach; ?>
+			</nav>
+
+			<form action="options.php" method="post" class="dpc-settings-form">
+				<?php
+				settings_fields( 'dpc_settings_group' );
+				echo '<input type="hidden" name="dpc_current_tab" value="' . esc_attr( $current_tab ) . '">';
+
+				switch ( $current_tab ) {
+					case 'auth':
+						$this->render_auth_tab();
+						break;
+					case 'rating':
+						$this->render_rating_tab();
+						break;
+					case 'comments':
+						$this->render_comments_tab();
+						break;
+					case 'general':
+					default:
+						$this->render_general_tab();
+						break;
+				}
+
+				submit_button();
+				?>
+			</form>
+		</div>
+		<?php
+	}
+
+	private function render_general_tab(): void {
+		$enable_social_auth = (int) dpc_get_option( 'enable_social_auth', 0 );
+		$enable_post_rating = (int) dpc_get_option( 'enable_post_rating', 0 );
+		$enable_comments    = (int) dpc_get_option( 'enable_comments', 0 );
+		?>
+		<div class="dpc-card">
+			<h2><?php echo esc_html__( 'Управление модулями', 'divi-pro-engagement' ); ?></h2>
+			<p class="dpc-card-subtitle"><?php echo esc_html__( 'Активируйте необходимые модули для интеграции с Divi 5.', 'divi-pro-engagement' ); ?></p>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Соц. авторизация', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Вход и регистрация в один клик через Google, Telegram, Facebook, Discord.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'enable_social_auth', $enable_social_auth ); ?>
+				</div>
+			</div>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Рейтинг статей', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Оценка публикаций (звезды/лайки) с микроразметкой Schema.org для сниппетов Google.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'enable_post_rating', $enable_post_rating ); ?>
+				</div>
+			</div>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Улучшение комментариев Divi 5', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'AJAX отправка, голосование за комментарии (лайк/дизлайк) и двойная защита от спама.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'enable_comments', $enable_comments ); ?>
+				</div>
+			</div>
+		</div>
+
+		<div class="dpc-card dpc-info-card">
+			<h3><?php echo esc_html__( 'Доступные шорткоды', 'divi-pro-engagement' ); ?></h3>
+			<p><?php echo esc_html__( 'Вы можете вставлять шорткоды в текстовые или кодовые модули макета Divi 5:', 'divi-pro-engagement' ); ?></p>
+			<ul class="dpc-shortcode-list">
+				<li>
+					<code>[dpc_social_login]</code> — <?php echo esc_html__( 'Кнопки входа через включенные соцсети.', 'divi-pro-engagement' ); ?>
+				</li>
+				<li>
+					<code>[dpc_post_rating]</code> — <?php echo esc_html__( 'Виджет рейтинга статьи для ручного размещения в любом месте шаблона статьи.', 'divi-pro-engagement' ); ?>
+				</li>
+			</ul>
+		</div>
+		<?php
+	}
+
+	private function render_auth_tab(): void {
+		$base_callback = home_url( '/wp-json/dpc/v1/auth/' );
+		?>
+		<div class="dpc-card dpc-info-card">
+			<h3><?php echo esc_html__( 'Callback / Redirect URL для OAuth провайдеров', 'divi-pro-engagement' ); ?></h3>
+			<p><?php echo esc_html__( 'Укажите эти URL в панелях разработчиков Google Cloud, Meta Developer и Discord Developer Portal:', 'divi-pro-engagement' ); ?></p>
+			<div class="dpc-code-box">
+				<div><strong>Google OAuth Redirect URI:</strong> <code><?php echo esc_url( $base_callback . 'google/callback' ); ?></code></div>
+				<div><strong>Discord Redirect URI:</strong> <code><?php echo esc_url( $base_callback . 'discord/callback' ); ?></code></div>
+				<div><strong>Facebook OAuth Redirect URI:</strong> <code><?php echo esc_url( $base_callback . 'facebook/callback' ); ?></code></div>
+			</div>
+		</div>
+
+		<!-- Google -->
+		<div class="dpc-card">
+			<h2>Google OAuth</h2>
+			<div class="dpc-field-row">
+				<div class="dpc-field-label"><strong><?php echo esc_html__( 'Включить Google авторизацию', 'divi-pro-engagement' ); ?></strong></div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'auth_google_enable', (int) dpc_get_option( 'auth_google_enable', 0 ) ); ?>
+				</div>
+			</div>
+			<div class="dpc-input-row">
+				<label for="auth_google_client_id">Google Client ID</label>
+				<input type="text" id="auth_google_client_id" name="dpc_settings[auth_google_client_id]" value="<?php echo esc_attr( (string) dpc_get_option( 'auth_google_client_id', '' ) ); ?>" class="regular-text">
+			</div>
+			<div class="dpc-input-row">
+				<label for="auth_google_client_secret">Google Client Secret</label>
+				<input type="password" id="auth_google_client_secret" name="dpc_settings[auth_google_client_secret]" value="<?php echo esc_attr( (string) dpc_get_option( 'auth_google_client_secret', '' ) ); ?>" class="regular-text">
+			</div>
+		</div>
+
+		<!-- Telegram -->
+		<div class="dpc-card">
+			<h2>Telegram Login</h2>
+			<div class="dpc-field-row">
+				<div class="dpc-field-label"><strong><?php echo esc_html__( 'Включить Telegram авторизацию', 'divi-pro-engagement' ); ?></strong></div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'auth_telegram_enable', (int) dpc_get_option( 'auth_telegram_enable', 0 ) ); ?>
+				</div>
+			</div>
+			<div class="dpc-input-row">
+				<label for="auth_telegram_bot_username"><?php echo esc_html__( 'Имя бота (Bot Username)', 'divi-pro-engagement' ); ?></label>
+				<input type="text" id="auth_telegram_bot_username" name="dpc_settings[auth_telegram_bot_username]" placeholder="MySiteAuthBot" value="<?php echo esc_attr( (string) dpc_get_option( 'auth_telegram_bot_username', '' ) ); ?>" class="regular-text">
+			</div>
+			<div class="dpc-input-row">
+				<label for="auth_telegram_bot_token"><?php echo esc_html__( 'Токен бота (Bot Token)', 'divi-pro-engagement' ); ?></label>
+				<input type="password" id="auth_telegram_bot_token" name="dpc_settings[auth_telegram_bot_token]" value="<?php echo esc_attr( (string) dpc_get_option( 'auth_telegram_bot_token', '' ) ); ?>" class="regular-text">
+			</div>
+		</div>
+
+		<!-- Facebook -->
+		<div class="dpc-card">
+			<h2>Facebook Login</h2>
+			<div class="dpc-field-row">
+				<div class="dpc-field-label"><strong><?php echo esc_html__( 'Включить Facebook авторизацию', 'divi-pro-engagement' ); ?></strong></div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'auth_facebook_enable', (int) dpc_get_option( 'auth_facebook_enable', 0 ) ); ?>
+				</div>
+			</div>
+			<div class="dpc-input-row">
+				<label for="auth_facebook_app_id">Facebook App ID</label>
+				<input type="text" id="auth_facebook_app_id" name="dpc_settings[auth_facebook_app_id]" value="<?php echo esc_attr( (string) dpc_get_option( 'auth_facebook_app_id', '' ) ); ?>" class="regular-text">
+			</div>
+			<div class="dpc-input-row">
+				<label for="auth_facebook_app_secret">Facebook App Secret</label>
+				<input type="password" id="auth_facebook_app_secret" name="dpc_settings[auth_facebook_app_secret]" value="<?php echo esc_attr( (string) dpc_get_option( 'auth_facebook_app_secret', '' ) ); ?>" class="regular-text">
+			</div>
+		</div>
+
+		<!-- Discord -->
+		<div class="dpc-card">
+			<h2>Discord OAuth</h2>
+			<div class="dpc-field-row">
+				<div class="dpc-field-label"><strong><?php echo esc_html__( 'Включить Discord авторизацию', 'divi-pro-engagement' ); ?></strong></div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'auth_discord_enable', (int) dpc_get_option( 'auth_discord_enable', 0 ) ); ?>
+				</div>
+			</div>
+			<div class="dpc-input-row">
+				<label for="auth_discord_client_id">Discord Client ID</label>
+				<input type="text" id="auth_discord_client_id" name="dpc_settings[auth_discord_client_id]" value="<?php echo esc_attr( (string) dpc_get_option( 'auth_discord_client_id', '' ) ); ?>" class="regular-text">
+			</div>
+			<div class="dpc-input-row">
+				<label for="auth_discord_client_secret">Discord Client Secret</label>
+				<input type="password" id="auth_discord_client_secret" name="dpc_settings[auth_discord_client_secret]" value="<?php echo esc_attr( (string) dpc_get_option( 'auth_discord_client_secret', '' ) ); ?>" class="regular-text">
+			</div>
+		</div>
+		<?php
+	}
+
+	private function render_rating_tab(): void {
+		$rating_type          = (string) dpc_get_option( 'rating_type', 'stars' );
+		$rating_access        = (string) dpc_get_option( 'rating_access', 'all' );
+		$rating_position      = (string) dpc_get_option( 'rating_position', 'after' );
+		$rating_schema_enable = (int) dpc_get_option( 'rating_schema_enable', 1 );
+		?>
+		<div class="dpc-card">
+			<h2><?php echo esc_html__( 'Настройки рейтинга статей', 'divi-pro-engagement' ); ?></h2>
+
+			<div class="dpc-input-row">
+				<label for="rating_type"><strong><?php echo esc_html__( 'Тип рейтинга', 'divi-pro-engagement' ); ?></strong></label>
+				<select id="rating_type" name="dpc_settings[rating_type]" class="regular-text">
+					<option value="stars" <?php selected( 'stars', $rating_type ); ?>><?php echo esc_html__( '5 Звезд (Классический)', 'divi-pro-engagement' ); ?></option>
+					<option value="likes" <?php selected( 'likes', $rating_type ); ?>><?php echo esc_html__( 'Лайк / Дизлайк', 'divi-pro-engagement' ); ?></option>
+				</select>
+			</div>
+
+			<div class="dpc-input-row">
+				<label for="rating_access"><strong><?php echo esc_html__( 'Кто может голосовать', 'divi-pro-engagement' ); ?></strong></label>
+				<select id="rating_access" name="dpc_settings[rating_access]" class="regular-text">
+					<option value="all" <?php selected( 'all', $rating_access ); ?>><?php echo esc_html__( 'Все пользователи (по IP / Cookie)', 'divi-pro-engagement' ); ?></option>
+					<option value="logged_in" <?php selected( 'logged_in', $rating_access ); ?>><?php echo esc_html__( 'Только авторизованные пользователи', 'divi-pro-engagement' ); ?></option>
+				</select>
+			</div>
+
+			<div class="dpc-input-row">
+				<label for="rating_position"><strong><?php echo esc_html__( 'Автоматическое размещение в статье', 'divi-pro-engagement' ); ?></strong></label>
+				<select id="rating_position" name="dpc_settings[rating_position]" class="regular-text">
+					<option value="shortcode" <?php selected( 'shortcode', $rating_position ); ?>><?php echo esc_html__( 'Только шорткод [dpc_post_rating]', 'divi-pro-engagement' ); ?></option>
+					<option value="before" <?php selected( 'before', $rating_position ); ?>><?php echo esc_html__( 'Перед контентом статьи', 'divi-pro-engagement' ); ?></option>
+					<option value="after" <?php selected( 'after', $rating_position ); ?>><?php echo esc_html__( 'После контента статьи', 'divi-pro-engagement' ); ?></option>
+				</select>
+			</div>
+
+			<div class="dpc-field-row" style="margin-top: 15px;">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Микроразметка Schema.org', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Включить микроразметку Schema.org AggregateRating в формате JSON-LD для сниппетов Google.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'rating_schema_enable', $rating_schema_enable ); ?>
+				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	private function render_comments_tab(): void {
+		$comments_vote_access      = (string) dpc_get_option( 'comments_vote_access', 'all' );
+		$antispam_honeypot         = (int) dpc_get_option( 'antispam_honeypot', 1 );
+		$antispam_turnstile_enable = (int) dpc_get_option( 'antispam_turnstile_enable', 0 );
+		$turnstile_site_key        = (string) dpc_get_option( 'turnstile_site_key', '' );
+		$turnstile_secret_key      = (string) dpc_get_option( 'turnstile_secret_key', '' );
+		?>
+		<div class="dpc-card">
+			<h2><?php echo esc_html__( 'Голосование за комментарии', 'divi-pro-engagement' ); ?></h2>
+			<div class="dpc-input-row">
+				<label for="comments_vote_access"><strong><?php echo esc_html__( 'Кто может ставить лайки/дизлайки комментариям', 'divi-pro-engagement' ); ?></strong></label>
+				<select id="comments_vote_access" name="dpc_settings[comments_vote_access]" class="regular-text">
+					<option value="all" <?php selected( 'all', $comments_vote_access ); ?>><?php echo esc_html__( 'Все могут лайкать комментарии (IP + Cookie)', 'divi-pro-engagement' ); ?></option>
+					<option value="logged_in" <?php selected( 'logged_in', $comments_vote_access ); ?>><?php echo esc_html__( 'Только авторизованные пользователи', 'divi-pro-engagement' ); ?></option>
+				</select>
+			</div>
+		</div>
+
+		<div class="dpc-card">
+			<h2><?php echo esc_html__( 'Защита от спама', 'divi-pro-engagement' ); ?></h2>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Невидимая ловушка (Honeypot)', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Скрытые поля формы, отсекающие спам-ботов без раздражения реальных пользователей.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'antispam_honeypot', $antispam_honeypot ); ?>
+				</div>
+			</div>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Cloudflare Turnstile', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Интеллектуальная замена Google reCAPTCHA без капч с картинками.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'antispam_turnstile_enable', $antispam_turnstile_enable ); ?>
+				</div>
+			</div>
+
+			<div class="dpc-input-row">
+				<label for="turnstile_site_key">Turnstile Site Key</label>
+				<input type="text" id="turnstile_site_key" name="dpc_settings[turnstile_site_key]" value="<?php echo esc_attr( $turnstile_site_key ); ?>" class="regular-text">
+			</div>
+
+			<div class="dpc-input-row">
+				<label for="turnstile_secret_key">Turnstile Secret Key</label>
+				<input type="password" id="turnstile_secret_key" name="dpc_settings[turnstile_secret_key]" value="<?php echo esc_attr( $turnstile_secret_key ); ?>" class="regular-text">
+			</div>
+		</div>
+		<?php
+	}
+
+	private function render_toggle( string $key, int $value ): void {
+		?>
+		<label class="dpc-switch" for="<?php echo esc_attr( $key ); ?>">
 			<input
 				type="checkbox"
 				id="<?php echo esc_attr( $key ); ?>"
@@ -126,26 +463,163 @@ final class Settings {
 				value="1"
 				<?php checked( 1, $value ); ?>
 			/>
-			<?php echo esc_html( $label ); ?>
+			<span class="dpc-slider"></span>
 		</label>
 		<?php
 	}
 
-	public function render_settings_page(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			return;
-		}
+	private function render_admin_styles(): void {
 		?>
-		<div class="wrap">
-			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
-			<form action="options.php" method="post">
-				<?php
-				settings_fields( 'dpc_settings_group' );
-				do_settings_sections( 'dpc-settings' );
-				submit_button();
-				?>
-			</form>
-		</div>
+		<style>
+			.dpc-wrap {
+				max-width: 900px;
+				margin-top: 20px;
+			}
+			.dpc-nav-tabs {
+				margin-bottom: 20px;
+			}
+			.dpc-card {
+				background: #fff;
+				border: 1px solid #dcdcde;
+				border-radius: 8px;
+				padding: 24px;
+				margin-bottom: 20px;
+				box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+			}
+			.dpc-card h2 {
+				margin-top: 0;
+				margin-bottom: 8px;
+				font-size: 1.25rem;
+				color: #1d2327;
+			}
+			.dpc-card-subtitle {
+				color: #646970;
+				margin-top: 0;
+				margin-bottom: 20px;
+			}
+			.dpc-field-row {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 14px 0;
+				border-bottom: 1px solid #f0f0f1;
+			}
+			.dpc-field-row:last-child {
+				border-bottom: none;
+			}
+			.dpc-field-label {
+				display: flex;
+				flex-direction: column;
+				gap: 4px;
+				max-width: 80%;
+			}
+			.dpc-field-label strong {
+				font-size: 14px;
+				color: #1d2327;
+			}
+			.dpc-field-label span {
+				font-size: 13px;
+				color: #646970;
+			}
+			.dpc-input-row {
+				margin-top: 15px;
+				display: flex;
+				flex-direction: column;
+				gap: 6px;
+			}
+			.dpc-input-row label {
+				font-weight: 600;
+				color: #1d2327;
+			}
+			.dpc-input-row input.regular-text,
+			.dpc-input-row select.regular-text {
+				max-width: 450px;
+				width: 100%;
+				padding: 6px 10px;
+				border-radius: 4px;
+			}
+			.dpc-info-card {
+				background: #f6f7f7;
+				border-left: 4px solid #2271b1;
+			}
+			.dpc-info-card h3 {
+				margin-top: 0;
+				color: #1d2327;
+			}
+			.dpc-code-box {
+				background: #fff;
+				border: 1px solid #dcdcde;
+				border-radius: 6px;
+				padding: 12px;
+				margin-top: 10px;
+				display: flex;
+				flex-direction: column;
+				gap: 8px;
+			}
+			.dpc-code-box code {
+				word-break: break-all;
+				background: #edf2f7;
+				padding: 2px 6px;
+				border-radius: 3px;
+			}
+			.dpc-shortcode-list {
+				margin-top: 10px;
+				margin-left: 20px;
+				list-style-type: disc;
+			}
+			.dpc-shortcode-list code {
+				font-weight: 600;
+				background: #fff;
+				padding: 2px 6px;
+				border: 1px solid #dcdcde;
+				border-radius: 4px;
+			}
+			/* Switch Toggle */
+			.dpc-switch {
+				position: relative;
+				display: inline-block;
+				width: 44px;
+				height: 24px;
+				flex-shrink: 0;
+			}
+			.dpc-switch input {
+				opacity: 0;
+				width: 0;
+				height: 0;
+			}
+			.dpc-slider {
+				position: absolute;
+				cursor: pointer;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				background-color: #c3c4c7;
+				transition: .25s ease-in-out;
+				border-radius: 24px;
+			}
+			.dpc-slider:before {
+				position: absolute;
+				content: "";
+				height: 18px;
+				width: 18px;
+				left: 3px;
+				bottom: 3px;
+				background-color: white;
+				transition: .25s ease-in-out;
+				border-radius: 50%;
+				box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+			}
+			.dpc-switch input:checked + .dpc-slider {
+				background-color: #2271b1;
+			}
+			.dpc-switch input:focus + .dpc-slider {
+				box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2271b1;
+			}
+			.dpc-switch input:checked + .dpc-slider:before {
+				transform: translateX(20px);
+			}
+		</style>
 		<?php
 	}
 }
