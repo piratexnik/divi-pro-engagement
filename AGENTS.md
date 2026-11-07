@@ -14,6 +14,7 @@ To avoid duplicating functions, always respect this structure (`DiviProEngagemen
 - `includes/Core/Settings.php` -> Admin page, saving/retrieving options (`dpc_get_option()`).
 - `includes/Core/Updater.php` -> GitHub auto-updater via `pre_set_site_transient_update_plugins`.
 - `includes/Core/Shortcodes.php` -> Registers `[dpc_social_login]` and `[dpc_post_rating]`.
+- `includes/Core/CustomLogin.php` -> Custom `wp-login.php` URL slug routing, 404 protection, and subscriber Admin Bar / `/wp-admin/` restriction.
 - `includes/Modules/Comments/` -> Divi 5 comment hooks, AJAX submission, Likes/Dislikes, AntiSpam (Honeypot + Turnstile).
 - `includes/Modules/PostRating/` -> Post rating logic, AJAX handler, Schema.org JSON-LD.
 - `includes/Modules/Auth/` -> REST API OAuth endpoints, user creation, social providers (Google, Telegram, Discord, Facebook).

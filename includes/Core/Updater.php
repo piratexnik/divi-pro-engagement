@@ -25,6 +25,7 @@ final class Updater {
 		add_filter( 'pre_set_site_transient_update_plugins', [ $this, 'check_for_plugin_update' ] );
 		add_filter( 'plugins_api', [ $this, 'plugin_info_popup' ], 20, 3 );
 		add_filter( 'upgrader_source_selection', [ $this, 'fix_source_folder' ], 10, 4 );
+		add_action( 'upgrader_process_complete', [ $this, 'purge_cache_after_update' ], 10, 2 );
 		add_filter( 'plugin_action_links_' . DPC_BASENAME, [ $this, 'add_action_links' ] );
 		add_action( 'admin_init', [ $this, 'check_for_updates' ] );
 		add_action( 'admin_notices', [ $this, 'render_manual_check_notice' ] );
@@ -37,7 +38,7 @@ final class Updater {
 	 * @return mixed
 	 */
 	public function check_for_plugin_update( mixed $transient ): mixed {
-		if ( ! is_object( $transient ) || empty( $transient->checked ) ) {
+		if ( ! is_object( $transient ) ) {
 			return $transient;
 		}
 
@@ -65,7 +66,9 @@ final class Updater {
 
 		if ( version_compare( $remote_version, DPC_VERSION, '>' ) ) {
 			$transient->response[ DPC_BASENAME ] = $item;
+			unset( $transient->no_update[ DPC_BASENAME ] );
 		} else {
+			unset( $transient->response[ DPC_BASENAME ] );
 			$transient->no_update[ DPC_BASENAME ] = $item;
 		}
 
@@ -142,6 +145,22 @@ final class Updater {
 	}
 
 	/**
+	 * Purge release cache after plugin update finishes.
+	 *
+	 * @param mixed $upgrader Upgrader instance.
+	 * @param array $options  Update data.
+	 */
+	public function purge_cache_after_update( mixed $upgrader, array $options ): void {
+		if (
+			isset( $options['action'], $options['type'] ) &&
+			'update' === $options['action'] &&
+			'plugin' === $options['type']
+		) {
+			delete_transient( self::TRANSIENT_KEY );
+		}
+	}
+
+	/**
 	 * Add "Check for updates" link to plugin action links.
 	 *
 	 * @param array<string, string> $links Current links.
@@ -185,7 +204,7 @@ final class Updater {
 		wp_clean_plugins_cache( true );
 		wp_update_plugins();
 
-		wp_safe_redirect( admin_url( 'plugins.php?dpc_update_checked=1' ) );
+		wp_safe_redirect( admin_url( 'plugins.php?dpc_checked=1' ) );
 		exit;
 	}
 
@@ -193,12 +212,12 @@ final class Updater {
 	 * Display admin notice after manual update check.
 	 */
 	public function render_manual_check_notice(): void {
-		if ( ! isset( $_GET['dpc_update_checked'] ) ) {
+		if ( ! isset( $_GET['dpc_checked'] ) ) {
 			return;
 		}
 
 		echo '<div class="notice notice-success is-dismissible"><p>' .
-			esc_html__( 'Divi Pro Engagement: проверка обновлений на GitHub выполнена.', 'divi-pro-engagement' ) .
+			esc_html__( 'Проверка обновлений выполнена', 'divi-pro-engagement' ) .
 			'</p></div>';
 	}
 
@@ -237,9 +256,9 @@ final class Updater {
 		if ( ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response ) ) {
 			$data = json_decode( wp_remote_retrieve_body( $response ), true );
 			if ( is_array( $data ) && ! empty( $data['tag_name'] ) ) {
-				$tag_name       = (string) $data['tag_name'];
-				$remote_version = ltrim( $tag_name, 'vV' );
-				$download_url   = (string) ( $data['zipball_url'] ?? 'https://github.com/' . self::GITHUB_REPO . "/archive/refs/tags/{$tag_name}.zip" );
+				$tag            = (string) $data['tag_name'];
+				$remote_version = ltrim( $tag, 'vV' );
+				$download_url   = (string) ( $data['zipball_url'] ?? 'https://github.com/' . self::GITHUB_REPO . "/archive/refs/tags/{$tag}.zip" );
 
 				if ( ! empty( $data['assets'] ) && is_array( $data['assets'] ) ) {
 					foreach ( $data['assets'] as $asset ) {
@@ -272,9 +291,9 @@ final class Updater {
 			if ( ! is_wp_error( $tags_response ) && 200 === wp_remote_retrieve_response_code( $tags_response ) ) {
 				$tags_data = json_decode( wp_remote_retrieve_body( $tags_response ), true );
 				if ( is_array( $tags_data ) && ! empty( $tags_data[0]['name'] ) ) {
-					$tag_name       = (string) $tags_data[0]['name'];
-					$remote_version = ltrim( $tag_name, 'vV' );
-					$download_url   = (string) ( $tags_data[0]['zipball_url'] ?? 'https://github.com/' . self::GITHUB_REPO . "/archive/refs/tags/{$tag_name}.zip" );
+					$tag            = (string) $tags_data[0]['name'];
+					$remote_version = ltrim( $tag, 'vV' );
+					$download_url   = (string) ( $tags_data[0]['zipball_url'] ?? 'https://github.com/' . self::GITHUB_REPO . "/archive/refs/tags/{$tag}.zip" );
 
 					$release_data = [
 						'version'      => $remote_version,

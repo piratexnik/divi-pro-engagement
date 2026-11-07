@@ -91,6 +91,24 @@ final class Settings {
 			foreach ( $tab_fields[ $current_tab ] as $field_key => $field_type ) {
 				if ( 'checkbox' === $field_type ) {
 					$existing[ $field_key ] = ! empty( $input_data[ $field_key ] ) ? 1 : 0;
+				} elseif ( 'slug' === $field_type ) {
+					$raw_slug = isset( $input_data[ $field_key ] )
+						? sanitize_text_field( wp_unslash( (string) $input_data[ $field_key ] ) )
+						: '';
+					$clean_slug = sanitize_title( trim( $raw_slug, "/ \t\n\r\0\x0B" ) );
+					if ( in_array( $clean_slug, [ 'wp-admin', 'wp-login', 'wp-login.php', 'admin', 'login' ], true ) && 'wp-login.php' === $clean_slug ) {
+						$clean_slug = '';
+					}
+					$existing[ $field_key ] = $clean_slug;
+				} elseif ( 'role' === $field_type ) {
+					$role = isset( $input_data[ $field_key ] )
+						? sanitize_key( wp_unslash( (string) $input_data[ $field_key ] ) )
+						: 'subscriber';
+					$allowed_roles = $this->get_allowed_roles();
+					if ( 'administrator' === $role || ! isset( $allowed_roles[ $role ] ) ) {
+						$role = 'subscriber';
+					}
+					$existing[ $field_key ] = $role;
 				} else {
 					$existing[ $field_key ] = isset( $input_data[ $field_key ] )
 						? sanitize_text_field( wp_unslash( (string) $input_data[ $field_key ] ) )
@@ -110,23 +128,30 @@ final class Settings {
 	private function get_tab_fields_schema(): array {
 		return [
 			'general'  => [
-				'enable_social_auth' => 'checkbox',
-				'enable_post_rating' => 'checkbox',
-				'enable_comments'    => 'checkbox',
+				'enable_social_auth'  => 'checkbox',
+				'enable_post_rating'  => 'checkbox',
+				'enable_comments'     => 'checkbox',
+				'enable_custom_login' => 'checkbox',
+				'custom_login_slug'   => 'slug',
+				'hide_admin_bar'      => 'checkbox',
 			],
 			'auth'     => [
-				'auth_google_enable'        => 'checkbox',
-				'auth_google_client_id'     => 'text',
-				'auth_google_client_secret' => 'text',
-				'auth_telegram_enable'      => 'checkbox',
-				'auth_telegram_bot_username'=> 'text',
-				'auth_telegram_bot_token'   => 'text',
-				'auth_facebook_enable'      => 'checkbox',
-				'auth_facebook_app_id'      => 'text',
-				'auth_facebook_app_secret'  => 'text',
-				'auth_discord_enable'       => 'checkbox',
-				'auth_discord_client_id'    => 'text',
-				'auth_discord_client_secret'=> 'text',
+				'auth_select_account'        => 'checkbox',
+				'auth_auto_link_email'       => 'checkbox',
+				'auth_disable_admin'         => 'checkbox',
+				'auth_default_role'          => 'role',
+				'auth_google_enable'         => 'checkbox',
+				'auth_google_client_id'      => 'text',
+				'auth_google_client_secret'  => 'text',
+				'auth_telegram_enable'       => 'checkbox',
+				'auth_telegram_bot_username' => 'text',
+				'auth_telegram_bot_token'    => 'text',
+				'auth_facebook_enable'       => 'checkbox',
+				'auth_facebook_app_id'       => 'text',
+				'auth_facebook_app_secret'   => 'text',
+				'auth_discord_enable'        => 'checkbox',
+				'auth_discord_client_id'     => 'text',
+				'auth_discord_client_secret' => 'text',
 			],
 			'rating'   => [
 				'rating_type'          => 'text',
@@ -142,6 +167,23 @@ final class Settings {
 				'turnstile_secret_key'      => 'text',
 			],
 		];
+	}
+
+	/**
+	 * Get all editable roles except administrator.
+	 *
+	 * @return array<string, string>
+	 */
+	private function get_allowed_roles(): array {
+		$wp_roles = wp_roles();
+		$names    = $wp_roles instanceof \WP_Roles ? $wp_roles->get_names() : [];
+		unset( $names['administrator'] );
+
+		if ( empty( $names ) ) {
+			$names['subscriber'] = 'Subscriber';
+		}
+
+		return $names;
 	}
 
 	public function render_settings_page(): void {
@@ -166,6 +208,13 @@ final class Settings {
 		?>
 		<div class="wrap dpc-wrap">
 			<h1><?php echo esc_html__( 'Divi Pro Engagement — Настройки', 'divi-pro-engagement' ); ?></h1>
+
+			<?php
+			if ( isset( $_GET['settings-updated'] ) ) {
+				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Настройки успешно сохранены.', 'divi-pro-engagement' ) . '</p></div>';
+			}
+			settings_errors();
+			?>
 
 			<nav class="nav-tab-wrapper wp-clearfix dpc-nav-tabs">
 				<?php foreach ( $tabs as $tab_id => $tab_title ) : ?>
@@ -207,9 +256,12 @@ final class Settings {
 	}
 
 	private function render_general_tab(): void {
-		$enable_social_auth = (int) dpc_get_option( 'enable_social_auth', 0 );
-		$enable_post_rating = (int) dpc_get_option( 'enable_post_rating', 0 );
-		$enable_comments    = (int) dpc_get_option( 'enable_comments', 0 );
+		$enable_social_auth  = (int) dpc_get_option( 'enable_social_auth', 0 );
+		$enable_post_rating  = (int) dpc_get_option( 'enable_post_rating', 0 );
+		$enable_comments     = (int) dpc_get_option( 'enable_comments', 0 );
+		$enable_custom_login = (int) dpc_get_option( 'enable_custom_login', 0 );
+		$custom_login_slug   = (string) dpc_get_option( 'custom_login_slug', '' );
+		$hide_admin_bar      = (int) dpc_get_option( 'hide_admin_bar', 0 );
 		?>
 		<div class="dpc-card">
 			<h2><?php echo esc_html__( 'Управление модулями', 'divi-pro-engagement' ); ?></h2>
@@ -246,6 +298,47 @@ final class Settings {
 			</div>
 		</div>
 
+		<div class="dpc-card">
+			<h2><?php echo esc_html__( 'Безопасность и Админ-панель', 'divi-pro-engagement' ); ?></h2>
+			<p class="dpc-card-subtitle"><?php echo esc_html__( 'Защита страницы входа от брутфорс-ботов и ограничение админ-панели для подписчиков.', 'divi-pro-engagement' ); ?></p>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Включить изменение адреса страницы входа wp-login.php', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Прямой доступ к /wp-login.php и /wp-admin/ для неавторизованных посетителей будет возвращать ошибку 404.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'enable_custom_login', $enable_custom_login ); ?>
+				</div>
+			</div>
+
+			<div class="dpc-input-row" style="margin-bottom: 12px;">
+				<label for="custom_login_slug"><?php echo esc_html__( 'Свой адрес входа (например: alogin или secret-enter)', 'divi-pro-engagement' ); ?></label>
+				<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+					<code><?php echo esc_html( trailingslashit( home_url() ) ); ?></code>
+					<input
+						type="text"
+						id="custom_login_slug"
+						name="dpc_settings[custom_login_slug]"
+						placeholder="alogin"
+						value="<?php echo esc_attr( $custom_login_slug ); ?>"
+						class="regular-text"
+						style="max-width: 240px;"
+					/>
+				</div>
+			</div>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Скрыть верхнюю черную панель WordPress (Admin Bar) для подписчиков', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Отключает верхний тулбар на фронтенде и закрывает доступ в /wp-admin/ для пользователей без права редактирования записей.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'hide_admin_bar', $hide_admin_bar ); ?>
+				</div>
+			</div>
+		</div>
+
 		<div class="dpc-card dpc-info-card">
 			<h3><?php echo esc_html__( 'Доступные шорткоды', 'divi-pro-engagement' ); ?></h3>
 			<p><?php echo esc_html__( 'Вы можете вставлять шорткоды в текстовые или кодовые модули макета Divi 5:', 'divi-pro-engagement' ); ?></p>
@@ -262,15 +355,66 @@ final class Settings {
 	}
 
 	private function render_auth_tab(): void {
-		$base_callback = home_url( '/wp-json/dpc/v1/auth/' );
+		$base_callback        = home_url( '/wp-json/dpc/v1/auth/' );
+		$auth_select_account  = (int) dpc_get_option( 'auth_select_account', 1 );
+		$auth_auto_link_email = (int) dpc_get_option( 'auth_auto_link_email', 1 );
+		$auth_disable_admin   = (int) dpc_get_option( 'auth_disable_admin', 1 );
+		$auth_default_role    = (string) dpc_get_option( 'auth_default_role', 'subscriber' );
+		$allowed_roles        = $this->get_allowed_roles();
 		?>
 		<div class="dpc-card dpc-info-card">
 			<h3><?php echo esc_html__( 'Callback / Redirect URL для OAuth провайдеров', 'divi-pro-engagement' ); ?></h3>
 			<p><?php echo esc_html__( 'Укажите эти URL в панелях разработчиков Google Cloud, Meta Developer и Discord Developer Portal:', 'divi-pro-engagement' ); ?></p>
 			<div class="dpc-code-box">
-				<div><strong>Google OAuth Redirect URI:</strong> <code><?php echo esc_url( $base_callback . 'google/callback' ); ?></code></div>
-				<div><strong>Discord Redirect URI:</strong> <code><?php echo esc_url( $base_callback . 'discord/callback' ); ?></code></div>
-				<div><strong>Facebook OAuth Redirect URI:</strong> <code><?php echo esc_url( $base_callback . 'facebook/callback' ); ?></code></div>
+				<div><strong>Google OAuth Redirect URI:</strong> <code><?php echo esc_url( $base_callback . 'google' ); ?></code></div>
+				<div><strong>Discord Redirect URI:</strong> <code><?php echo esc_url( $base_callback . 'discord' ); ?></code></div>
+				<div><strong>Facebook OAuth Redirect URI:</strong> <code><?php echo esc_url( $base_callback . 'facebook' ); ?></code></div>
+			</div>
+		</div>
+
+		<!-- PRO Auth Settings -->
+		<div class="dpc-card">
+			<h2><?php echo esc_html__( 'PRO-настройки входа', 'divi-pro-engagement' ); ?></h2>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Всегда показывать выбор аккаунта при входе через Google', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Передает параметр prompt=select_account, чтобы пользователь мог выбрать нужный Google-аккаунт.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'auth_select_account', $auth_select_account ); ?>
+				</div>
+			</div>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Автоматически привязывать соцсеть к существующему аккаунту при совпадении Email', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Если на сайте уже есть пользователь с таким Email, вход привяжет соцсеть к его профилю без создания дубля.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'auth_auto_link_email', $auth_auto_link_email ); ?>
+				</div>
+			</div>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Запретить вход через соцсети для Администраторов в целях безопасности', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Блокирует авторизацию через OAuth для аккаунтов с правами администратора (manage_options).', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'auth_disable_admin', $auth_disable_admin ); ?>
+				</div>
+			</div>
+
+			<div class="dpc-input-row">
+				<label for="auth_default_role"><strong><?php echo esc_html__( 'Роль новых пользователей при регистрации', 'divi-pro-engagement' ); ?></strong></label>
+				<select id="auth_default_role" name="dpc_settings[auth_default_role]" class="regular-text">
+					<?php foreach ( $allowed_roles as $role_key => $role_name ) : ?>
+						<option value="<?php echo esc_attr( $role_key ); ?>" <?php selected( $role_key, $auth_default_role ); ?>>
+							<?php echo esc_html( translate_user_role( $role_name ) ); ?>
+						</option>
+					<?php endforeach; ?>
+				</select>
 			</div>
 		</div>
 

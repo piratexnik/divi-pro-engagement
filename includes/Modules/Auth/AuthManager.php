@@ -180,15 +180,27 @@ final class AuthManager {
 			$user = $existing_users[0];
 		}
 
-		// 2. Fallback search by email
-		if ( null === $user && '' !== $email ) {
+		// 2. Fallback search by email (if auto-linking is enabled)
+		if ( null === $user && '' !== $email && (bool) dpc_get_option( 'auth_auto_link_email', 1 ) ) {
 			$user_by_email = get_user_by( 'email', $email );
 			if ( $user_by_email instanceof \WP_User ) {
 				$user = $user_by_email;
 			}
 		}
 
-		// 3. Register new subscriber if user doesn't exist
+		// Block administrator social login if auth_disable_admin is enabled
+		if ( $user instanceof \WP_User && (bool) dpc_get_option( 'auth_disable_admin', 1 ) && user_can( $user, 'manage_options' ) ) {
+			wp_die(
+				'В целях безопасности Администратор должен входить только через страницу входа по паролю.',
+				'Доступ ограничен',
+				[
+					'response'  => 403,
+					'back_link' => true,
+				]
+			);
+		}
+
+		// 3. Register new user if not found
 		if ( null === $user ) {
 			$base_login = '';
 			if ( '' !== $email ) {
@@ -208,7 +220,12 @@ final class AuthManager {
 				++$counter;
 			}
 
-			$user_email = '' !== $email ? $email : "{$user_login}@{$provider}.local";
+			$default_role = sanitize_key( (string) dpc_get_option( 'auth_default_role', 'subscriber' ) );
+			if ( '' === $default_role || 'administrator' === $default_role || null === get_role( $default_role ) ) {
+				$default_role = 'subscriber';
+			}
+
+			$user_email = ( '' !== $email && ! email_exists( $email ) ) ? $email : "{$user_login}@{$provider}.local";
 			$user_id    = wp_insert_user(
 				[
 					'user_login'   => $user_login,
@@ -216,7 +233,7 @@ final class AuthManager {
 					'user_pass'    => wp_generate_password( 24 ),
 					'display_name' => '' !== $name ? $name : $user_login,
 					'first_name'   => '' !== $name ? $name : '',
-					'role'         => 'subscriber',
+					'role'         => $default_role,
 				]
 			);
 
@@ -231,6 +248,17 @@ final class AuthManager {
 		if ( ! ( $user instanceof \WP_User ) ) {
 			wp_safe_redirect( '' !== $redirect_to ? $redirect_to : home_url() );
 			exit;
+		}
+
+		if ( (bool) dpc_get_option( 'auth_disable_admin', 1 ) && user_can( $user, 'manage_options' ) ) {
+			wp_die(
+				'В целях безопасности Администратор должен входить только через страницу входа по паролю.',
+				'Доступ ограничен',
+				[
+					'response'  => 403,
+					'back_link' => true,
+				]
+			);
 		}
 
 		// Update social meta and avatar

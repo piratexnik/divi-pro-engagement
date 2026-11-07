@@ -32,8 +32,11 @@ final class GoogleProvider {
 			'scope'         => 'openid email profile',
 			'state'         => $state,
 			'access_type'   => 'online',
-			'prompt'        => 'select_account',
 		];
+
+		if ( (bool) dpc_get_option( 'auth_select_account', 1 ) ) {
+			$params['prompt'] = 'select_account';
+		}
 
 		return 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query( $params, '', '&', PHP_QUERY_RFC3986 );
 	}

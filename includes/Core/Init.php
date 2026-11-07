@@ -29,6 +29,8 @@ final class Init {
 			Updater::get_instance();
 		}
 
+		CustomLogin::get_instance();
+
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_frontend_assets' ] );
 
 		// Module 1: Comments (Divi 5 Comments, AJAX, Reactions, AntiSpam)
