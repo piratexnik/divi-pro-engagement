@@ -3,20 +3,11 @@
  */
 
 .dpc-social-login {
-	margin: 16px 0 20px;
-	padding: 16px 20px;
-	background: #f8fafc;
-	border: 1px solid #e2e8f0;
-	border-radius: 10px;
+	margin: 14px 0;
+	padding: 0;
+	background: transparent;
+	border: none;
 	box-sizing: border-box;
-}
-
-.dpc-social-login__title {
-	margin: 0 0 12px;
-	font-size: 14px;
-	font-weight: 600;
-	color: #334155;
-	line-height: 1.4;
 }
 
 .dpc-social-login__buttons {
@@ -26,179 +17,235 @@
 	align-items: center;
 }
 
-.dpc-social-btn {
+/* Layouts */
+.dpc-social-login.style-inline .dpc-social-login__buttons,
+.dpc-social-login.style-icon .dpc-social-login__buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: center;
+}
+
+.dpc-social-login.style-column .dpc-social-login__buttons {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 10px;
+	min-width: 220px;
+}
+
+.dpc-social-login.style-fullwidth .dpc-social-login__buttons {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 10px;
+	width: 100%;
+}
+
+.dpc-social-login.style-fullwidth .dpc-btn {
+	width: 100%;
+}
+
+/* Base Button */
+.dpc-btn,
+button.dpc-btn {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	gap: 10px;
-	padding: 9px 18px;
+	height: 42px;
+	padding: 0 18px;
 	border-radius: 8px;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
 	font-size: 14px;
 	font-weight: 600;
-	line-height: 1.2;
+	line-height: 1;
 	text-decoration: none !important;
 	cursor: pointer;
-	transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+	transition: all 0.2s ease;
 	box-sizing: border-box;
+	user-select: none;
+	outline: none;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
-.dpc-social-btn:hover {
+.dpc-btn:hover,
+button.dpc-btn:hover {
 	transform: translateY(-1px);
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
 }
 
-.dpc-social-btn:active {
+.dpc-btn:active,
+button.dpc-btn:active {
 	transform: translateY(0);
 }
 
-.dpc-social-btn__icon {
+.dpc-btn__icon {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	width: 18px;
+	height: 18px;
 	flex-shrink: 0;
 }
 
-.dpc-social-btn__icon svg {
-	display: block;
+.dpc-btn__icon svg {
 	width: 18px;
 	height: 18px;
+	display: block;
 }
 
-/* Google Brand Button */
-.dpc-social-btn--google {
+.dpc-btn__label {
+	display: inline-block;
+	white-space: nowrap;
+}
+
+/* Style: Icon Only */
+.dpc-social-login.style-icon .dpc-btn {
+	width: 42px;
+	height: 42px;
+	padding: 0;
+	border-radius: 10px;
+	justify-content: center;
+}
+
+.dpc-social-login.style-icon .dpc-btn__label {
+	display: none !important;
+}
+
+/* Skin: Brand Colors (Default) */
+.dpc-social-login.skin-brand .dpc-btn-google {
 	background-color: #ffffff;
 	color: #1f2937 !important;
 	border: 1px solid #d1d5db;
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.dpc-social-btn--google:hover,
-.dpc-social-btn--google:focus {
+.dpc-social-login.skin-brand .dpc-btn-google:hover {
 	background-color: #f9fafb;
 	border-color: #9ca3af;
 	color: #111827 !important;
-	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
 }
 
-/* Discord Brand Button */
-.dpc-social-btn--discord {
-	background-color: #5865F2;
-	color: #ffffff !important;
-	border: 1px solid #4752C4;
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.dpc-social-btn--discord:hover,
-.dpc-social-btn--discord:focus {
-	background-color: #4752C4;
-	border-color: #3c45a5;
-	color: #ffffff !important;
-	box-shadow: 0 4px 8px rgba(88, 101, 242, 0.25);
-}
-
-/* Facebook Brand Button */
-.dpc-social-btn--facebook {
-	background-color: #1877F2;
-	color: #ffffff !important;
-	border: 1px solid #0c63d4;
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.dpc-social-btn--facebook:hover,
-.dpc-social-btn--facebook:focus {
-	background-color: #0c63d4;
-	border-color: #0a54b3;
-	color: #ffffff !important;
-	box-shadow: 0 4px 8px rgba(24, 119, 242, 0.25);
-}
-
-/* Telegram Brand Button & Widget Overlay */
-.dpc-btn-telegram-wrapper {
-	position: relative;
-	display: inline-flex;
-	border-radius: 8px;
-	transition: transform 0.15s ease;
-}
-
-.dpc-btn-telegram-wrapper:hover {
-	transform: translateY(-1px);
-}
-
-.dpc-btn-telegram {
+.dpc-social-login.skin-brand .dpc-btn-telegram {
 	background-color: #2AABEE;
 	color: #ffffff !important;
-	border: 1px solid #1e96d4;
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-	pointer-events: none;
+	border: 1px solid #2AABEE;
 }
 
-.dpc-btn-telegram-wrapper:hover .dpc-btn-telegram {
+.dpc-social-login.skin-brand .dpc-btn-telegram:hover {
 	background-color: #229ED9;
-	border-color: #1a86bd;
-	box-shadow: 0 4px 8px rgba(42, 171, 238, 0.25);
+	border-color: #229ED9;
+	color: #ffffff !important;
 }
 
-.dpc-telegram-widget-overlay {
-	opacity: 0.01;
-	position: absolute;
-	inset: 0;
-	overflow: hidden;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	z-index: 2;
-	cursor: pointer;
+.dpc-social-login.skin-brand .dpc-btn-discord {
+	background-color: #5865F2;
+	color: #ffffff !important;
+	border: 1px solid #5865F2;
 }
 
-.dpc-telegram-widget-overlay iframe {
-	width: 100% !important;
-	height: 100% !important;
-	transform: scale(1.5);
-	cursor: pointer;
+.dpc-social-login.skin-brand .dpc-btn-discord:hover {
+	background-color: #4752C4;
+	border-color: #4752C4;
+	color: #ffffff !important;
 }
 
-/* Logged-in User Compact Box */
+.dpc-social-login.skin-brand .dpc-btn-twitter {
+	background-color: #000000;
+	color: #ffffff !important;
+	border: 1px solid #1f2937;
+}
+
+.dpc-social-login.skin-brand .dpc-btn-twitter:hover {
+	background-color: #18181b;
+	border-color: #3f3f46;
+	color: #ffffff !important;
+}
+
+.dpc-social-login.skin-brand .dpc-btn-facebook {
+	background-color: #1877F2;
+	color: #ffffff !important;
+	border: 1px solid #1877F2;
+}
+
+.dpc-social-login.skin-brand .dpc-btn-facebook:hover {
+	background-color: #166FE5;
+	border-color: #166FE5;
+	color: #ffffff !important;
+}
+
+/* Skin: Dark */
+.dpc-social-login.skin-dark .dpc-btn {
+	background-color: #1e1e24;
+	color: #ffffff !important;
+	border: 1px solid #2e2e38;
+}
+
+.dpc-social-login.skin-dark .dpc-btn:hover {
+	background-color: #2a2a32;
+	border-color: #3f3f4e;
+	color: #ffffff !important;
+}
+
+/* Skin: Light */
+.dpc-social-login.skin-light .dpc-btn {
+	background-color: #ffffff;
+	color: #1f2937 !important;
+	border: 1px solid #e5e7eb;
+}
+
+.dpc-social-login.skin-light .dpc-btn:hover {
+	background-color: #f9fafb;
+	border-color: #d1d5db;
+	color: #111827 !important;
+}
+
+/* Logged-in User Pill */
 .dpc-user-logged {
-	display: flex;
+	display: inline-flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	margin: 14px 0 18px;
-	padding: 10px 16px;
+	gap: 10px;
+	margin: 10px 0;
+	padding: 5px 8px 5px 6px;
 	background: #f8fafc;
 	border: 1px solid #e2e8f0;
-	border-radius: 10px;
+	border-radius: 9999px;
+	max-width: 100%;
 	box-sizing: border-box;
 }
 
-.dpc-user-logged__info {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-}
-
 .dpc-user-logged__avatar {
-	width: 36px;
-	height: 36px;
-	border-radius: 50%;
+	width: 32px !important;
+	height: 32px !important;
+	border-radius: 50% !important;
 	object-fit: cover;
-	border: 2px solid #ffffff;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+	flex-shrink: 0;
+	display: block;
 }
 
 .dpc-user-logged__name {
 	font-size: 14px;
 	font-weight: 600;
 	color: #1e293b;
+	line-height: 1.2;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 200px;
 }
 
 .dpc-user-logged__logout {
-	font-size: 13px;
-	font-weight: 500;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 30px;
+	height: 30px;
+	margin-left: auto;
+	border-radius: 50%;
 	color: #64748b !important;
 	text-decoration: none !important;
-	padding: 5px 10px;
-	border-radius: 6px;
-	transition: background-color 0.15s ease, color 0.15s ease;
+	transition: background-color 0.2s ease, color 0.2s ease;
+	flex-shrink: 0;
 }
 
 .dpc-user-logged__logout:hover {
@@ -206,18 +253,8 @@
 	color: #dc2626 !important;
 }
 
-@media (max-width: 480px) {
-	.dpc-social-login__buttons {
-		flex-direction: column;
-		align-items: stretch;
-	}
-
-	.dpc-social-btn,
-	.dpc-btn-telegram-wrapper {
-		width: 100%;
-	}
-
-	.dpc-user-logged {
-		flex-wrap: wrap;
-	}
+.dpc-user-logged__logout svg {
+	width: 18px;
+	height: 18px;
+	display: block;
 }

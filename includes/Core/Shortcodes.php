@@ -38,6 +38,15 @@ final class Shortcodes {
 			return '';
 		}
 
-		return AuthManager::get_instance()->render_auth_box();
+		$parsed_atts = shortcode_atts(
+			[
+				'style' => (string) dpc_get_option( 'auth_shortcode_style', 'inline' ),
+				'skin'  => (string) dpc_get_option( 'auth_shortcode_skin', 'brand' ),
+			],
+			is_array( $atts ) ? $atts : [],
+			'dpc_social_login'
+		);
+
+		return AuthManager::get_instance()->render_auth_box( 'shortcode', $parsed_atts );
 	}
 }

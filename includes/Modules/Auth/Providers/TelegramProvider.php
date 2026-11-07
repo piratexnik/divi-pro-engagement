@@ -28,8 +28,16 @@ final class TelegramProvider {
 
 	public function is_configured(): bool {
 		return (bool) dpc_get_option( 'auth_telegram_enable', false )
-			&& '' !== $this->bot_username
+			&& '' !== $this->get_bot_id()
 			&& '' !== $this->bot_token;
+	}
+
+	public function get_bot_id(): string {
+		if ( '' === $this->bot_token || ! str_contains( $this->bot_token, ':' ) ) {
+			return '';
+		}
+		$parts = explode( ':', $this->bot_token, 2 );
+		return preg_replace( '/[^0-9]/', '', $parts[0] ) ?: '';
 	}
 
 	public function get_bot_username(): string {

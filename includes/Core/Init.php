@@ -51,6 +51,7 @@ final class Init {
 			if ( (bool) dpc_get_option( 'auth_show_in_comments', true ) ) {
 				add_action( 'comment_form_before_fields', [ $this, 'render_comment_form_social_login' ] );
 				add_action( 'comment_form_must_log_in_after', [ $this, 'render_comment_form_social_login' ] );
+				add_filter( 'comment_form_defaults', [ $this, 'filter_comment_form_logged_in_as' ] );
 			}
 		}
 	}
@@ -66,6 +67,32 @@ final class Init {
 			[],
 			DPC_VERSION
 		);
+
+		if ( (bool) dpc_get_option( 'enable_social_auth', false ) && (bool) dpc_get_option( 'auth_telegram_enable', false ) ) {
+			wp_enqueue_script(
+				'dpc-telegram-widget',
+				'https://telegram.org/js/telegram-widget.js?22',
+				[],
+				null,
+				true
+			);
+		}
+
+		wp_enqueue_script(
+			'dpc-frontend',
+			DPC_URL . 'assets/js/frontend.js',
+			[ 'jquery' ],
+			DPC_VERSION,
+			true
+		);
+
+		wp_localize_script(
+			'dpc-frontend',
+			'dpcFrontend',
+			[
+				'telegramCallbackUrl' => home_url( '/wp-json/dpc/v1/auth/telegram' ),
+			]
+		);
 	}
 
 	public function render_comment_form_social_login(): void {
@@ -74,7 +101,22 @@ final class Init {
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Output is escaped inside render_auth_box().
-		echo AuthManager::get_instance()->render_auth_box();
+		echo AuthManager::get_instance()->render_auth_box( 'comments' );
+	}
+
+	/**
+	 * Replace default "Logged in as..." text in comment form with the compact User Pill.
+	 *
+	 * @param array<string, mixed> $defaults Comment form defaults.
+	 * @return array<string, mixed>
+	 */
+	public function filter_comment_form_logged_in_as( array $defaults ): array {
+		if ( $this->is_visual_builder_active() ) {
+			return $defaults;
+		}
+
+		$defaults['logged_in_as'] = AuthManager::get_instance()->render_auth_box( 'comments' );
+		return $defaults;
 	}
 
 	private function is_visual_builder_active(): bool {

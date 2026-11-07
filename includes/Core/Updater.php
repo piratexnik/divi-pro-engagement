@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Updater {
 	private const GITHUB_REPO    = 'piratexnik/divi-pro-engagement';
 	private const TRANSIENT_KEY  = 'dpc_github_release_info';
-	private const CACHE_LIFETIME = 21600; // 6 hours
+	private const CACHE_LIFETIME = 12 * HOUR_IN_SECONDS;
 
 	private static ?self $instance = null;
 
