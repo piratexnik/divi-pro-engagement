@@ -117,6 +117,14 @@ final class Settings {
 						$val = 100;
 					}
 					$existing[ $field_key ] = $val;
+				} elseif ( 'delay' === $field_type ) {
+					$val = isset( $input_data[ $field_key ] ) ? absint( $input_data[ $field_key ] ) : 15;
+					if ( $val < 1 ) {
+						$val = 1;
+					} elseif ( $val > 300 ) {
+						$val = 300;
+					}
+					$existing[ $field_key ] = $val;
 				} else {
 					$existing[ $field_key ] = isset( $input_data[ $field_key ] )
 						? sanitize_text_field( wp_unslash( (string) $input_data[ $field_key ] ) )
@@ -180,7 +188,12 @@ final class Settings {
 				'rating_schema_enable' => 'checkbox',
 			],
 			'comments' => [
+				'comments_skin'             => 'text',
 				'comments_vote_access'      => 'text',
+				'comments_nudge_enable'     => 'checkbox',
+				'comments_nudge_position'   => 'text',
+				'comments_nudge_delay'      => 'delay',
+				'comments_nudge_text'       => 'text',
 				'antispam_honeypot'         => 'checkbox',
 				'antispam_turnstile_enable' => 'checkbox',
 				'turnstile_site_key'        => 'text',
@@ -695,20 +708,83 @@ final class Settings {
 	}
 
 	private function render_comments_tab(): void {
+		$comments_skin             = (string) dpc_get_option( 'comments_skin', 'light' );
 		$comments_vote_access      = (string) dpc_get_option( 'comments_vote_access', 'all' );
+		$comments_nudge_enable     = (int) dpc_get_option( 'comments_nudge_enable', 0 );
+		$comments_nudge_position   = (string) dpc_get_option( 'comments_nudge_position', 'right' );
+		$comments_nudge_delay      = (int) dpc_get_option( 'comments_nudge_delay', 15 );
+		$comments_nudge_text       = (string) dpc_get_option( 'comments_nudge_text', '' );
 		$antispam_honeypot         = (int) dpc_get_option( 'antispam_honeypot', 1 );
 		$antispam_turnstile_enable = (int) dpc_get_option( 'antispam_turnstile_enable', 0 );
 		$turnstile_site_key        = (string) dpc_get_option( 'turnstile_site_key', '' );
 		$turnstile_secret_key      = (string) dpc_get_option( 'turnstile_secret_key', '' );
 		?>
 		<div class="dpc-card">
-			<h2><?php echo esc_html__( 'Голосование за комментарии', 'divi-pro-engagement' ); ?></h2>
+			<h2><?php echo esc_html__( 'Внешний вид и голосование', 'divi-pro-engagement' ); ?></h2>
+
+			<div class="dpc-input-row">
+				<label for="comments_skin"><strong><?php echo esc_html__( 'Цветовая схема блока комментариев', 'divi-pro-engagement' ); ?></strong></label>
+				<select id="comments_skin" name="dpc_settings[comments_skin]" class="regular-text">
+					<option value="light" <?php selected( 'light', $comments_skin ); ?>><?php echo esc_html__( 'Светлая тема', 'divi-pro-engagement' ); ?></option>
+					<option value="dark" <?php selected( 'dark', $comments_skin ); ?>><?php echo esc_html__( 'Темная тема', 'divi-pro-engagement' ); ?></option>
+				</select>
+			</div>
+
 			<div class="dpc-input-row">
 				<label for="comments_vote_access"><strong><?php echo esc_html__( 'Кто может ставить лайки/дизлайки комментариям', 'divi-pro-engagement' ); ?></strong></label>
 				<select id="comments_vote_access" name="dpc_settings[comments_vote_access]" class="regular-text">
 					<option value="all" <?php selected( 'all', $comments_vote_access ); ?>><?php echo esc_html__( 'Все могут лайкать комментарии (IP + Cookie)', 'divi-pro-engagement' ); ?></option>
 					<option value="logged_in" <?php selected( 'logged_in', $comments_vote_access ); ?>><?php echo esc_html__( 'Только авторизованные пользователи', 'divi-pro-engagement' ); ?></option>
 				</select>
+			</div>
+		</div>
+
+		<div class="dpc-card">
+			<h2><?php echo esc_html__( 'Всплывающий призыв к комментариям (Floating Nudge)', 'divi-pro-engagement' ); ?></h2>
+			<p class="dpc-card-subtitle"><?php echo esc_html__( 'Ненавязчивая плавающая капсула, которая плавно появляется через заданное время и приглашает читателя обсудить статью.', 'divi-pro-engagement' ); ?></p>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Показывать всплывающую кнопку-призыв прокомментировать статью', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Появляется только на страницах с открытыми комментариями, если читатель еще не доскроллил до блока обсуждения.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'comments_nudge_enable', $comments_nudge_enable ); ?>
+				</div>
+			</div>
+
+			<div class="dpc-input-row">
+				<label for="comments_nudge_position"><strong><?php echo esc_html__( 'Позиция на экране', 'divi-pro-engagement' ); ?></strong></label>
+				<select id="comments_nudge_position" name="dpc_settings[comments_nudge_position]" class="regular-text">
+					<option value="right" <?php selected( 'right', $comments_nudge_position ); ?>><?php echo esc_html__( 'Справа внизу', 'divi-pro-engagement' ); ?></option>
+					<option value="left" <?php selected( 'left', $comments_nudge_position ); ?>><?php echo esc_html__( 'Слева внизу', 'divi-pro-engagement' ); ?></option>
+				</select>
+			</div>
+
+			<div class="dpc-input-row">
+				<label for="comments_nudge_delay"><strong><?php echo esc_html__( 'Задержка появления (в секундах)', 'divi-pro-engagement' ); ?></strong></label>
+				<input
+					type="number"
+					id="comments_nudge_delay"
+					name="dpc_settings[comments_nudge_delay]"
+					min="1"
+					max="300"
+					value="<?php echo esc_attr( (string) $comments_nudge_delay ); ?>"
+					class="regular-text"
+					style="max-width: 140px;"
+				/>
+			</div>
+
+			<div class="dpc-input-row">
+				<label for="comments_nudge_text"><strong><?php echo esc_html__( 'Свой текст (оставьте пустым для авто-определения языка: EN / UK / RU)', 'divi-pro-engagement' ); ?></strong></label>
+				<input
+					type="text"
+					id="comments_nudge_text"
+					name="dpc_settings[comments_nudge_text]"
+					placeholder="<?php echo esc_attr__( 'Залишити коментар / Оставить комментарий / Leave a comment', 'divi-pro-engagement' ); ?>"
+					value="<?php echo esc_attr( $comments_nudge_text ); ?>"
+					class="regular-text"
+				/>
 			</div>
 		</div>
 

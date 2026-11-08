@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace DiviProEngagement\Core;
 
 use DiviProEngagement\Modules\Auth\AuthManager;
+use DiviProEngagement\Modules\Comments\CommentsEngine;
 use DiviProEngagement\Modules\PostRating\RatingEngine;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -35,9 +36,11 @@ final class Init {
 
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_frontend_assets' ] );
 
-		// Module 1: Comments (Divi 5 Comments, AJAX, Reactions, AntiSpam)
-		if ( (bool) dpc_get_option( 'enable_comments', false ) ) {
-			// Stub: Modules\Comments\CommentsManager will be loaded here.
+		$comments_enabled = (bool) dpc_get_option( 'enable_comments', false );
+
+		// Module 1: Comments (Divi 5 Comments, AJAX, Reactions, AntiSpam, Floating Nudge)
+		if ( $comments_enabled ) {
+			CommentsEngine::get_instance();
 		}
 
 		// Module 2: Post Rating (Schema.org JSON-LD + [dpc_post_rating])
@@ -49,7 +52,7 @@ final class Init {
 		if ( (bool) dpc_get_option( 'enable_social_auth', false ) ) {
 			AuthManager::get_instance();
 
-			if ( (bool) dpc_get_option( 'auth_show_in_comments', true ) ) {
+			if ( ! $comments_enabled && (bool) dpc_get_option( 'auth_show_in_comments', true ) ) {
 				add_action( 'comment_form_before_fields', [ $this, 'render_comment_form_social_login' ] );
 				add_action( 'comment_form_must_log_in_after', [ $this, 'render_comment_form_social_login' ] );
 				add_filter( 'comment_form_defaults', [ $this, 'filter_comment_form_logged_in_as' ] );
@@ -73,6 +76,21 @@ final class Init {
 			wp_enqueue_script(
 				'dpc-telegram-widget',
 				'https://telegram.org/js/telegram-widget.js?22',
+				[],
+				null,
+				true
+			);
+		}
+
+		if (
+			! is_user_logged_in()
+			&& (bool) dpc_get_option( 'enable_comments', false )
+			&& (bool) dpc_get_option( 'antispam_turnstile_enable', false )
+			&& '' !== (string) dpc_get_option( 'turnstile_site_key', '' )
+		) {
+			wp_enqueue_script(
+				'dpc-turnstile',
+				'https://challenges.cloudflare.com/turnstile/v0/api.js',
 				[],
 				null,
 				true
