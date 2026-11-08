@@ -82,11 +82,11 @@ final class CustomLogin {
 	 * Serve wp-login.php on custom slug or return 404 on direct wp-login.php / unauthenticated wp-admin.
 	 */
 	public function handle_custom_login_routing(): void {
-		global $pagenow;
+		global $pagenow, $user_login, $error, $action, $errors, $interim_login, $redirect_to;
 
 		if ( $this->is_custom_login_request ) {
-			$user_login = '';
-			$error      = '';
+			$user_login = isset( $user_login ) && is_string( $user_login ) ? $user_login : '';
+			$error      = isset( $error ) && is_string( $error ) ? $error : '';
 			require_once ABSPATH . 'wp-login.php';
 			exit;
 		}
@@ -100,8 +100,8 @@ final class CustomLogin {
 			|| str_contains( $request_uri, 'wp-signup.php' );
 
 		// Allow POST action=postpass for password-protected posts
-		$action = isset( $_REQUEST['action'] ) ? sanitize_key( wp_unslash( (string) $_REQUEST['action'] ) ) : '';
-		if ( 'postpass' === $action ) {
+		$req_action = isset( $_REQUEST['action'] ) ? sanitize_key( wp_unslash( (string) $_REQUEST['action'] ) ) : '';
+		if ( 'postpass' === $req_action ) {
 			return;
 		}
 
@@ -159,9 +159,12 @@ final class CustomLogin {
 			: '/';
 
 		$parsed_path = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
+		$site_path   = (string) wp_parse_url( site_url(), PHP_URL_PATH );
 		$home_path   = (string) wp_parse_url( home_url(), PHP_URL_PATH );
 
-		if ( '' !== $home_path && '/' !== $home_path && str_starts_with( $parsed_path, $home_path ) ) {
+		if ( '' !== $site_path && '/' !== $site_path && str_starts_with( $parsed_path, $site_path ) ) {
+			$parsed_path = substr( $parsed_path, strlen( $site_path ) );
+		} elseif ( '' !== $home_path && '/' !== $home_path && str_starts_with( $parsed_path, $home_path ) ) {
 			$parsed_path = substr( $parsed_path, strlen( $home_path ) );
 		}
 

@@ -18,6 +18,8 @@ final class AuthManager {
 	private const STATE_TTL      = 600; // 10 minutes
 
 	private static ?self $instance = null;
+	private bool $avatar_filters_registered = false;
+	private bool $oauth_routes_registered   = false;
 
 	public static function get_instance(): self {
 		if ( null === self::$instance ) {
@@ -26,11 +28,32 @@ final class AuthManager {
 		return self::$instance;
 	}
 
-	private function __construct() {
-		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
+	private function __construct() {}
+
+	/**
+	 * Register avatar filters once when either Comments or Social Auth module is active.
+	 */
+	public function register_avatar_filters(): void {
+		if ( $this->avatar_filters_registered ) {
+			return;
+		}
+		$this->avatar_filters_registered = true;
+
 		add_filter( 'get_avatar_url', [ $this, 'filter_avatar_url' ], 10, 3 );
 		add_filter( 'pre_get_avatar_data', [ $this, 'filter_avatar_data' ], 10, 2 );
 		add_filter( 'kses_allowed_protocols', [ $this, 'allow_data_protocol' ] );
+	}
+
+	/**
+	 * Register OAuth REST API endpoints only when Social Auth module is enabled.
+	 */
+	public function register_oauth_routes(): void {
+		if ( $this->oauth_routes_registered ) {
+			return;
+		}
+		$this->oauth_routes_registered = true;
+
+		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
 	}
 
 	/**
@@ -60,6 +83,10 @@ final class AuthManager {
 	}
 
 	public function register_rest_routes(): void {
+		if ( ! (bool) dpc_get_option( 'enable_social_auth', false ) ) {
+			return;
+		}
+
 		register_rest_route(
 			self::REST_NAMESPACE,
 			'/auth/(?P<provider>[a-z]+)/start',
@@ -100,6 +127,11 @@ final class AuthManager {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function handle_auth_start( \WP_REST_Request $request ): mixed {
+		if ( ! (bool) dpc_get_option( 'enable_social_auth', false ) ) {
+			wp_safe_redirect( home_url() );
+			exit;
+		}
+
 		$provider_name = (string) $request->get_param( 'provider' );
 		$provider      = $this->get_provider_instance( $provider_name );
 
@@ -149,6 +181,11 @@ final class AuthManager {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function handle_auth_callback( \WP_REST_Request $request ): mixed {
+		if ( ! (bool) dpc_get_option( 'enable_social_auth', false ) ) {
+			wp_safe_redirect( home_url() );
+			exit;
+		}
+
 		$provider_name = (string) $request->get_param( 'provider' );
 
 		if ( 'telegram' === $provider_name ) {
@@ -236,8 +273,8 @@ final class AuthManager {
 			$user = $existing_users[0];
 		}
 
-		// 2. Fallback search by email (if auto-linking is enabled)
-		if ( null === $user && '' !== $email && (bool) dpc_get_option( 'auth_auto_link_email', 1 ) ) {
+		// 2. Fallback search by verified email (if auto-linking is enabled)
+		if ( null === $user && '' !== $email && ! str_ends_with( $email, '.user' ) && ! str_ends_with( $email, '.local' ) && (bool) dpc_get_option( 'auth_auto_link_email', 1 ) ) {
 			$user_by_email = get_user_by( 'email', $email );
 			if ( $user_by_email instanceof \WP_User ) {
 				$user = $user_by_email;
@@ -304,17 +341,6 @@ final class AuthManager {
 		if ( ! ( $user instanceof \WP_User ) ) {
 			wp_safe_redirect( '' !== $redirect_to ? $redirect_to : home_url() );
 			exit;
-		}
-
-		if ( (bool) dpc_get_option( 'auth_disable_admin', 1 ) && user_can( $user, 'manage_options' ) ) {
-			wp_die(
-				'В целях безопасности Администратор должен входить только через страницу входа по паролю.',
-				'Доступ ограничен',
-				[
-					'response'  => 403,
-					'back_link' => true,
-				]
-			);
 		}
 
 		// Update social meta and avatar

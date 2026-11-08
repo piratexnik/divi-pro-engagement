@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace DiviProEngagement\Modules\Comments;
 
-use DiviProEngagement\Modules\Auth\AuthManager;
+use DiviProEngagement\Core\Init;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -11,8 +11,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class CommentsEngine {
 	private const HASH_BUFFER_LIMIT = 200;
+	private const USER_VOTES_LIMIT  = 500;
+	private const FLOOD_SECONDS     = 10;
 
 	private static ?self $instance = null;
+
+	/**
+	 * In-memory map of comments indexed by comment_ID to prevent N+1 queries during tree rendering.
+	 *
+	 * @var array<int, \WP_Comment>
+	 */
+	private array $comments_map = [];
+
+	/**
+	 * Cached post author ID during list rendering.
+	 */
+	private int $current_post_author_id = 0;
 
 	public static function get_instance(): self {
 		if ( null === self::$instance ) {
@@ -23,9 +37,6 @@ final class CommentsEngine {
 
 	private function __construct() {
 		add_filter( 'comments_template', [ $this, 'override_comments_template' ], 999 );
-		add_filter( 'get_avatar_url', [ AuthManager::get_instance(), 'filter_avatar_url' ], 10, 3 );
-		add_filter( 'pre_get_avatar_data', [ AuthManager::get_instance(), 'filter_avatar_data' ], 10, 2 );
-		add_filter( 'kses_allowed_protocols', [ AuthManager::get_instance(), 'allow_data_protocol' ] );
 
 		add_action( 'wp_ajax_dpc_submit_comment', [ $this, 'handle_ajax_submit_comment' ] );
 		add_action( 'wp_ajax_nopriv_dpc_submit_comment', [ $this, 'handle_ajax_submit_comment' ] );
@@ -44,7 +55,7 @@ final class CommentsEngine {
 	 * @return string
 	 */
 	public function override_comments_template( string $template ): string {
-		if ( function_exists( 'et_core_is_fb_enabled' ) && et_core_is_fb_enabled() ) {
+		if ( Init::is_visual_builder_active() ) {
 			return $template;
 		}
 
@@ -94,16 +105,13 @@ final class CommentsEngine {
 	}
 
 	/**
-	 * Get localized UI dictionary strictly matching the current page language.
+	 * Return all localized UI dictionaries ('uk', 'ru', 'en') as a single source of truth.
 	 *
-	 * @param string|null $lang_override Optional language override ('uk', 'ru', 'en').
-	 * @return array<string, string>
+	 * @return array<string, array<string, string>>
 	 */
-	public static function get_strings( ?string $lang_override = null ): array {
-		$lang = self::detect_lang_code( $lang_override );
-
-		if ( 'uk' === $lang ) {
-			return [
+	public static function get_all_dictionaries(): array {
+		return [
+			'uk' => [
 				'lang'            => 'uk',
 				'name'            => "Ім'я *",
 				'placeholder'     => 'Напишіть коментар...',
@@ -120,12 +128,10 @@ final class CommentsEngine {
 				'error_name'      => "Вкажіть ваше ім'я.",
 				'error_turnstile' => 'Перевірка антиспам не пройдена.',
 				'error_closed'    => 'Коментарі закриті.',
+				'error_flood'     => 'Зачекайте кілька секунд перед наступним коментарем.',
 				'error_generic'   => 'Помилка збереження коментаря.',
-			];
-		}
-
-		if ( 'ru' === $lang ) {
-			return [
+			],
+			'ru' => [
 				'lang'            => 'ru',
 				'name'            => 'Имя *',
 				'placeholder'     => 'Напишите комментарий...',
@@ -142,29 +148,43 @@ final class CommentsEngine {
 				'error_name'      => 'Укажите ваше имя.',
 				'error_turnstile' => 'Проверка антиспама не пройдена.',
 				'error_closed'    => 'Комментарии закрыты.',
+				'error_flood'     => 'Подождите несколько секунд перед отправкой следующего комментария.',
 				'error_generic'   => 'Ошибка сохранения комментария.',
-			];
-		}
-
-		return [
-			'lang'            => 'en',
-			'name'            => 'Name *',
-			'placeholder'     => 'Write a comment...',
-			'submit'          => 'Send',
-			'reply'           => 'Reply',
-			'cancel_reply'    => 'Cancel',
-			'sort_popular'    => 'Popular',
-			'sort_newest'     => 'Newest',
-			'sort_oldest'     => 'Oldest',
-			'author_badge'    => 'Author',
-			'nudge'           => 'Leave a comment',
-			'moderation'      => '✓ Thank you! Your comment is awaiting moderation.',
-			'error_empty'     => 'Please enter a comment.',
-			'error_name'      => 'Please enter your name.',
-			'error_turnstile' => 'Anti-spam verification failed.',
-			'error_closed'    => 'Comments are closed.',
-			'error_generic'   => 'Failed to save comment.',
+			],
+			'en' => [
+				'lang'            => 'en',
+				'name'            => 'Name *',
+				'placeholder'     => 'Write a comment...',
+				'submit'          => 'Send',
+				'reply'           => 'Reply',
+				'cancel_reply'    => 'Cancel',
+				'sort_popular'    => 'Popular',
+				'sort_newest'     => 'Newest',
+				'sort_oldest'     => 'Oldest',
+				'author_badge'    => 'Author',
+				'nudge'           => 'Leave a comment',
+				'moderation'      => '✓ Thank you! Your comment is awaiting moderation.',
+				'error_empty'     => 'Please enter a comment.',
+				'error_name'      => 'Please enter your name.',
+				'error_turnstile' => 'Anti-spam verification failed.',
+				'error_closed'    => 'Comments are closed.',
+				'error_flood'     => 'Please wait a few seconds before posting another comment.',
+				'error_generic'   => 'Failed to save comment.',
+			],
 		];
+	}
+
+	/**
+	 * Get localized UI dictionary strictly matching the current page language.
+	 *
+	 * @param string|null $lang_override Optional language override ('uk', 'ru', 'en').
+	 * @return array<string, string>
+	 */
+	public static function get_strings( ?string $lang_override = null ): array {
+		$lang  = self::detect_lang_code( $lang_override );
+		$dicts = self::get_all_dictionaries();
+
+		return $dicts[ $lang ] ?? $dicts['en'];
 	}
 
 	/**
@@ -267,6 +287,7 @@ final class CommentsEngine {
 
 	/**
 	 * Fetch and render comments sorted by 'popular', 'newest', or 'oldest'.
+	 * Pre-warms user cache and indexes comments in memory to eliminate N+1 SQL queries.
 	 *
 	 * @param int         $post_id       Post ID.
 	 * @param string      $sort          Sort mode.
@@ -276,10 +297,11 @@ final class CommentsEngine {
 	public function get_sorted_comments_html( int $post_id, string $sort = 'newest', ?string $lang_override = null ): string {
 		$comments = get_comments(
 			[
-				'post_id' => $post_id,
-				'status'  => 'approve',
-				'orderby' => 'comment_date_gmt',
-				'order'   => 'ASC',
+				'post_id'            => $post_id,
+				'status'             => 'approve',
+				'orderby'            => 'comment_date_gmt',
+				'order'              => 'ASC',
+				'update_comment_meta_cache' => true,
 			]
 		);
 
@@ -287,18 +309,33 @@ final class CommentsEngine {
 			return '';
 		}
 
+		$this->comments_map           = [];
+		$this->current_post_author_id = (int) get_post_field( 'post_author', $post_id );
+
 		$top_level = [];
 		$children  = [];
+		$user_ids  = [];
 
 		foreach ( $comments as $c ) {
 			if ( ! ( $c instanceof \WP_Comment ) ) {
 				continue;
 			}
+			$cid                        = (int) $c->comment_ID;
+			$this->comments_map[ $cid ] = $c;
+
+			if ( (int) $c->user_id > 0 ) {
+				$user_ids[ (int) $c->user_id ] = (int) $c->user_id;
+			}
+
 			if ( 0 === (int) $c->comment_parent ) {
 				$top_level[] = $c;
 			} else {
 				$children[] = $c;
 			}
+		}
+
+		if ( ! empty( $user_ids ) && function_exists( 'cache_users' ) ) {
+			cache_users( array_values( $user_ids ) );
 		}
 
 		if ( 'popular' === $sort ) {
@@ -340,11 +377,15 @@ final class CommentsEngine {
 		remove_filter( 'option_thread_comments', '__return_true' );
 		remove_filter( 'option_thread_comments_depth', $force_depth );
 
+		$this->comments_map           = [];
+		$this->current_post_author_id = 0;
+
 		return $html_out;
 	}
 
 	/**
 	 * Calculate 1-indexed nesting depth of a comment (clamped between 1 and 5).
+	 * Uses in-memory $comments_map when available to avoid extra DB queries.
 	 *
 	 * @param \WP_Comment $comment Comment object.
 	 * @return int
@@ -354,7 +395,7 @@ final class CommentsEngine {
 		$curr_id = (int) $comment->comment_parent;
 		while ( $curr_id > 0 && $depth < 5 ) {
 			++$depth;
-			$parent_obj = get_comment( $curr_id );
+			$parent_obj = $this->comments_map[ $curr_id ] ?? get_comment( $curr_id );
 			if ( ! ( $parent_obj instanceof \WP_Comment ) ) {
 				break;
 			}
@@ -365,6 +406,7 @@ final class CommentsEngine {
 
 	/**
 	 * Custom callback for rendering a single comment card.
+	 * Does not bake guest $_COOKIE votes into server HTML to prevent page-cache pollution (FlyingPress).
 	 *
 	 * @param \WP_Comment          $comment       Comment object.
 	 * @param array<string, mixed> $args          Display arguments.
@@ -387,7 +429,11 @@ final class CommentsEngine {
 
 		$is_verified_author = false;
 		if ( $user_id > 0 ) {
-			if ( user_can( $user_id, 'manage_options' ) || $user_id === (int) get_post_field( 'post_author', $post_id ) ) {
+			$post_author_id = $this->current_post_author_id > 0
+				? $this->current_post_author_id
+				: (int) get_post_field( 'post_author', $post_id );
+
+			if ( user_can( $user_id, 'manage_options' ) || $user_id === $post_author_id ) {
 				$is_verified_author = true;
 			}
 		}
@@ -397,7 +443,7 @@ final class CommentsEngine {
 
 		$parent_author = '';
 		if ( $parent_id > 0 ) {
-			$parent_comment = get_comment( $parent_id );
+			$parent_comment = $this->comments_map[ $parent_id ] ?? get_comment( $parent_id );
 			if ( $parent_comment instanceof \WP_Comment ) {
 				$parent_author = $this->get_safe_author_name( $parent_comment, $lang_override );
 			}
@@ -405,7 +451,7 @@ final class CommentsEngine {
 
 		$likes       = max( 0, (int) get_comment_meta( $comment_id, '_dpc_comment_likes', true ) );
 		$dislikes    = max( 0, (int) get_comment_meta( $comment_id, '_dpc_comment_dislikes', true ) );
-		$user_vote   = $this->get_visitor_comment_vote( $comment_id );
+		$user_vote   = $this->get_logged_in_comment_vote( $comment_id );
 		$vote_access = (string) dpc_get_option( 'comments_vote_access', 'all' );
 		$is_locked   = ( 'logged_in' === $vote_access && ! is_user_logged_in() );
 		$safe_avatar = str_starts_with( $avatar_url, 'data:image/svg+xml' ) ? $avatar_url : esc_url( $avatar_url );
@@ -492,20 +538,42 @@ final class CommentsEngine {
 	 * Handle AJAX comment submission.
 	 */
 	public function handle_ajax_submit_comment(): void {
-		check_ajax_referer( 'dpc_frontend_nonce', 'nonce' );
-
 		$lang    = isset( $_POST['lang'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['lang'] ) ) : null;
 		$strings = self::get_strings( $lang );
+
+		if ( ! check_ajax_referer( 'dpc_frontend_nonce', 'nonce', false ) ) {
+			wp_send_json_error(
+				[
+					'code'    => 'invalid_nonce',
+					'message' => $strings['error_generic'],
+				],
+				403
+			);
+		}
+
 		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
 		$parent  = isset( $_POST['comment_parent'] ) ? absint( $_POST['comment_parent'] ) : 0;
 		$content = isset( $_POST['comment'] ) ? trim( wp_kses_post( wp_unslash( (string) $_POST['comment'] ) ) ) : '';
 
-		if ( $post_id <= 0 || ! comments_open( $post_id ) ) {
+		$post = $post_id > 0 ? get_post( $post_id ) : null;
+		if ( ! ( $post instanceof \WP_Post ) || 'publish' !== $post->post_status || post_password_required( $post_id ) || ! comments_open( $post_id ) ) {
 			wp_send_json_error( [ 'message' => $strings['error_closed'] ], 400 );
 		}
 
 		if ( '' === $content ) {
 			wp_send_json_error( [ 'message' => $strings['error_empty'] ], 400 );
+		}
+
+		// Validate comment_parent belongs to the same post and is approved
+		if ( $parent > 0 ) {
+			$parent_comment = get_comment( $parent );
+			if (
+				! ( $parent_comment instanceof \WP_Comment )
+				|| (int) $parent_comment->comment_post_ID !== $post_id
+				|| '1' !== (string) $parent_comment->comment_approved
+			) {
+				$parent = 0;
+			}
 		}
 
 		// 1. AntiSpam: Honeypot check
@@ -534,6 +602,15 @@ final class CommentsEngine {
 			}
 		}
 
+		// 3. Anti-flood rate limit (10s window for non-administrators)
+		if ( ! current_user_can( 'manage_options' ) ) {
+			$flood_key = 'dpc_c_flood_' . ( $is_logged_in ? 'u_' . get_current_user_id() : 'ip_' . Init::get_visitor_short_hash() );
+			if ( false !== get_transient( $flood_key ) ) {
+				wp_send_json_error( [ 'message' => $strings['error_flood'] ], 429 );
+			}
+			set_transient( $flood_key, 1, self::FLOOD_SECONDS );
+		}
+
 		$ip         = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( (string) $_SERVER['REMOTE_ADDR'] ) ) : '';
 		$user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( (string) $_SERVER['HTTP_USER_AGENT'] ) ) : '';
 
@@ -543,6 +620,12 @@ final class CommentsEngine {
 			if ( '' === $comment_author || ( user_can( $user, 'manage_options' ) && 'admin' === strtolower( $comment_author ) ) ) {
 				$comment_author = $strings['author_badge'];
 			}
+
+			$is_disallowed = ! user_can( $user, 'manage_options' )
+				&& function_exists( 'wp_check_comment_disallowed_list' )
+				&& wp_check_comment_disallowed_list( $comment_author, $user->user_email, $user->user_url, $content, $ip, $user_agent );
+
+			$approved_status = $is_disallowed ? 0 : 1;
 
 			$comment_data = [
 				'comment_post_ID'      => $post_id,
@@ -555,12 +638,22 @@ final class CommentsEngine {
 				'user_id'              => $user->ID,
 				'comment_author_IP'    => $ip,
 				'comment_agent'        => $user_agent,
-				'comment_approved'     => 1,
+				'comment_approved'     => $approved_status,
 			];
 
 			$comment_id = wp_insert_comment( wp_slash( $comment_data ) );
 			if ( ! $comment_id ) {
 				wp_send_json_error( [ 'message' => $strings['error_generic'] ], 500 );
+			}
+
+			if ( 0 === $approved_status ) {
+				wp_notify_moderator( $comment_id );
+				wp_send_json_success(
+					[
+						'status'  => 'moderation',
+						'message' => $strings['moderation'],
+					]
+				);
 			}
 
 			$comment_obj = get_comment( $comment_id );
@@ -625,16 +718,15 @@ final class CommentsEngine {
 	}
 
 	/**
-	 * Handle AJAX comment sorting.
+	 * Handle AJAX comment sorting (read-only, page-cache safe without nonce expiration failure).
 	 */
 	public function handle_ajax_load_comments(): void {
-		check_ajax_referer( 'dpc_frontend_nonce', 'nonce' );
-
 		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
 		$sort    = isset( $_POST['sort'] ) ? sanitize_key( wp_unslash( (string) $_POST['sort'] ) ) : 'newest';
 		$lang    = isset( $_POST['lang'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['lang'] ) ) : null;
 
-		if ( $post_id <= 0 ) {
+		$post = $post_id > 0 ? get_post( $post_id ) : null;
+		if ( ! ( $post instanceof \WP_Post ) || 'publish' !== $post->post_status || post_password_required( $post_id ) ) {
 			wp_send_json_error( [ 'code' => 'invalid_post' ], 400 );
 		}
 
@@ -656,13 +748,25 @@ final class CommentsEngine {
 	 * Handle AJAX comment voting (Like / Dislike).
 	 */
 	public function handle_ajax_vote_comment(): void {
-		check_ajax_referer( 'dpc_frontend_nonce', 'nonce' );
+		if ( is_user_logged_in() && ! check_ajax_referer( 'dpc_frontend_nonce', 'nonce', false ) ) {
+			wp_send_json_error( [ 'code' => 'invalid_nonce' ], 403 );
+		}
 
-		$comment_id = isset( $_POST['comment_id'] ) ? absint( $_POST['comment_id'] ) : 0;
-		$vote       = isset( $_POST['vote'] ) ? sanitize_key( wp_unslash( (string) $_POST['vote'] ) ) : '';
+		$comment_id  = isset( $_POST['comment_id'] ) ? absint( $_POST['comment_id'] ) : 0;
+		$vote        = isset( $_POST['vote'] ) ? sanitize_key( wp_unslash( (string) $_POST['vote'] ) ) : '';
+		$comment_obj = $comment_id > 0 ? get_comment( $comment_id ) : null;
 
-		if ( $comment_id <= 0 || ! get_comment( $comment_id ) || ! in_array( $vote, [ 'like', 'dislike' ], true ) ) {
+		if (
+			! ( $comment_obj instanceof \WP_Comment )
+			|| '1' !== (string) $comment_obj->comment_approved
+			|| ! in_array( $vote, [ 'like', 'dislike' ], true )
+		) {
 			wp_send_json_error( [ 'code' => 'invalid_request' ], 400 );
+		}
+
+		$post_id = (int) $comment_obj->comment_post_ID;
+		if ( 'publish' !== get_post_status( $post_id ) || post_password_required( $post_id ) ) {
+			wp_send_json_error( [ 'code' => 'invalid_post' ], 400 );
 		}
 
 		$vote_access = (string) dpc_get_option( 'comments_vote_access', 'all' );
@@ -705,15 +809,23 @@ final class CommentsEngine {
 				}
 			}
 
+			unset( $votes[ $comment_id ] );
 			$votes[ $comment_id ] = $vote;
+			if ( count( $votes ) > self::USER_VOTES_LIMIT ) {
+				$votes = array_slice( $votes, -self::USER_VOTES_LIMIT, null, true );
+			}
 			update_user_meta( $user_id, '_dpc_comment_votes', $votes );
+			$this->set_comment_vote_cookie( $comment_id, $vote );
 		} else {
 			if ( $this->has_guest_voted_comment( $comment_id ) ) {
+				$existing_cookie = $this->get_guest_comment_cookie_vote( $comment_id );
+				$returned_vote   = in_array( $existing_cookie, [ 'like', 'dislike' ], true ) ? $existing_cookie : $vote;
+
 				wp_send_json_success(
 					[
 						'likes'     => $likes,
 						'dislikes'  => $dislikes,
-						'user_vote' => $this->get_visitor_comment_vote( $comment_id ) ?: $vote,
+						'user_vote' => $returned_vote,
 					]
 				);
 			}
@@ -773,20 +885,31 @@ final class CommentsEngine {
 	}
 
 	/**
-	 * Get visitor's existing vote on a comment.
+	 * Get logged-in user's existing vote on a comment (never reads $_COOKIE on server HTML render).
 	 *
 	 * @param int $comment_id Comment ID.
 	 * @return string
 	 */
-	private function get_visitor_comment_vote( int $comment_id ): string {
-		if ( is_user_logged_in() ) {
-			$votes = get_user_meta( get_current_user_id(), '_dpc_comment_votes', true );
-			if ( is_array( $votes ) && isset( $votes[ $comment_id ] ) ) {
-				return (string) $votes[ $comment_id ];
-			}
+	private function get_logged_in_comment_vote( int $comment_id ): string {
+		if ( ! is_user_logged_in() ) {
 			return '';
 		}
 
+		$votes = get_user_meta( get_current_user_id(), '_dpc_comment_votes', true );
+		if ( is_array( $votes ) && isset( $votes[ $comment_id ] ) ) {
+			return (string) $votes[ $comment_id ];
+		}
+
+		return '';
+	}
+
+	/**
+	 * Read guest comment vote from cookie during AJAX requests only.
+	 *
+	 * @param int $comment_id Comment ID.
+	 * @return string
+	 */
+	private function get_guest_comment_cookie_vote( int $comment_id ): string {
 		$cookie_name = 'dpc_c_voted_' . $comment_id;
 		if ( isset( $_COOKIE[ $cookie_name ] ) ) {
 			return sanitize_key( wp_unslash( (string) $_COOKIE[ $cookie_name ] ) );
@@ -802,8 +925,7 @@ final class CommentsEngine {
 	 * @return bool
 	 */
 	private function has_guest_voted_comment( int $comment_id ): bool {
-		$cookie_name = 'dpc_c_voted_' . $comment_id;
-		if ( isset( $_COOKIE[ $cookie_name ] ) ) {
+		if ( '' !== $this->get_guest_comment_cookie_vote( $comment_id ) ) {
 			return true;
 		}
 
@@ -812,7 +934,7 @@ final class CommentsEngine {
 			return false;
 		}
 
-		return in_array( $this->get_visitor_short_hash(), $hashes, true );
+		return in_array( Init::get_visitor_short_hash(), $hashes, true );
 	}
 
 	/**
@@ -823,21 +945,19 @@ final class CommentsEngine {
 	 */
 	private function record_guest_comment_vote( int $comment_id, string $vote ): void {
 		$hashes = get_comment_meta( $comment_id, '_dpc_comment_hashes', true );
-		if ( ! is_array( $hashes ) ) {
-			$hashes = [];
-		}
-
-		$short_hash = $this->get_visitor_short_hash();
-		if ( ! in_array( $short_hash, $hashes, true ) ) {
-			$hashes[] = $short_hash;
-		}
-
-		if ( count( $hashes ) > self::HASH_BUFFER_LIMIT ) {
-			$hashes = array_slice( $hashes, -self::HASH_BUFFER_LIMIT );
-		}
+		$hashes = Init::append_visitor_hash( $hashes, self::HASH_BUFFER_LIMIT );
 
 		update_comment_meta( $comment_id, '_dpc_comment_hashes', $hashes );
+		$this->set_comment_vote_cookie( $comment_id, $vote );
+	}
 
+	/**
+	 * Set browser cookie for client-side comment vote highlighting.
+	 *
+	 * @param int    $comment_id Comment ID.
+	 * @param string $vote       'like' or 'dislike'.
+	 */
+	private function set_comment_vote_cookie( int $comment_id, string $vote ): void {
 		if ( ! headers_sent() ) {
 			setcookie(
 				'dpc_c_voted_' . $comment_id,
@@ -849,17 +969,5 @@ final class CommentsEngine {
 				false
 			);
 		}
-	}
-
-	/**
-	 * Generate 10-character visitor hash from IP and User-Agent.
-	 *
-	 * @return string
-	 */
-	private function get_visitor_short_hash(): string {
-		$ip         = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( (string) $_SERVER['REMOTE_ADDR'] ) ) : '0.0.0.0';
-		$user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( (string) $_SERVER['HTTP_USER_AGENT'] ) ) : '';
-
-		return substr( md5( $ip . $user_agent ), 0, 10 );
 	}
 }

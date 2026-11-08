@@ -50,22 +50,7 @@ final class Updater {
 
 		$remote_version = ltrim( (string) $release['version'], 'vV' );
 		$local_version  = $this->get_installed_version();
-		$plugin_slug    = dirname( DPC_BASENAME );
-
-		$item = (object) [
-			'id'            => $plugin_slug,
-			'slug'          => $plugin_slug,
-			'plugin'        => DPC_BASENAME,
-			'new_version'   => $remote_version,
-			'url'           => 'https://github.com/' . self::GITHUB_REPO,
-			'package'       => $release['download_url'],
-			'icons'         => [],
-			'banners'       => [],
-			'banners_rtl'   => [],
-			'tested'        => '',
-			'requires_php'  => '8.1',
-			'compatibility' => new \stdClass(),
-		];
+		$item           = $this->build_update_item( $remote_version, (string) $release['download_url'] );
 
 		if ( ! isset( $transient->response ) || ! is_array( $transient->response ) ) {
 			$transient->response = [];
@@ -83,6 +68,32 @@ final class Updater {
 		}
 
 		return $transient;
+	}
+
+	/**
+	 * Build standard WordPress plugin update item object.
+	 *
+	 * @param string $remote_version Remote release version.
+	 * @param string $download_url   Package zip URL.
+	 * @return object
+	 */
+	private function build_update_item( string $remote_version, string $download_url ): object {
+		$plugin_slug = dirname( DPC_BASENAME );
+
+		return (object) [
+			'id'            => $plugin_slug,
+			'slug'          => $plugin_slug,
+			'plugin'        => DPC_BASENAME,
+			'new_version'   => $remote_version,
+			'url'           => 'https://github.com/' . self::GITHUB_REPO,
+			'package'       => $download_url,
+			'icons'         => [],
+			'banners'       => [],
+			'banners_rtl'   => [],
+			'tested'        => '',
+			'requires_php'  => '8.1',
+			'compatibility' => new \stdClass(),
+		];
 	}
 
 	/**
@@ -268,22 +279,7 @@ final class Updater {
 		if ( ! empty( $release['version'] ) && ! empty( $release['download_url'] ) ) {
 			$remote_version = ltrim( (string) $release['version'], 'vV' );
 			$local_version  = $this->get_installed_version();
-			$plugin_slug    = dirname( DPC_BASENAME );
-
-			$item = (object) [
-				'id'            => $plugin_slug,
-				'slug'          => $plugin_slug,
-				'plugin'        => DPC_BASENAME,
-				'new_version'   => $remote_version,
-				'url'           => 'https://github.com/' . self::GITHUB_REPO,
-				'package'       => $release['download_url'],
-				'icons'         => [],
-				'banners'       => [],
-				'banners_rtl'   => [],
-				'tested'        => '',
-				'requires_php'  => '8.1',
-				'compatibility' => new \stdClass(),
-			];
+			$item           = $this->build_update_item( $remote_version, (string) $release['download_url'] );
 
 			$update_plugins = get_site_transient( 'update_plugins' );
 			if ( ! is_object( $update_plugins ) ) {
@@ -295,6 +291,9 @@ final class Updater {
 			if ( ! isset( $update_plugins->no_update ) || ! is_array( $update_plugins->no_update ) ) {
 				$update_plugins->no_update = [];
 			}
+			if ( ! isset( $update_plugins->checked ) || ! is_array( $update_plugins->checked ) ) {
+				$update_plugins->checked = [];
+			}
 
 			if ( version_compare( $remote_version, $local_version, '>' ) ) {
 				$update_plugins->response[ DPC_BASENAME ] = $item;
@@ -304,8 +303,8 @@ final class Updater {
 				$update_plugins->no_update[ DPC_BASENAME ] = $item;
 			}
 
-			$update_plugins->last_checked = time();
-			$update_plugins->checked      = [ DPC_BASENAME => $local_version ];
+			$update_plugins->last_checked              = time();
+			$update_plugins->checked[ DPC_BASENAME ] = $local_version;
 			set_site_transient( 'update_plugins', $update_plugins );
 		} else {
 			wp_update_plugins();

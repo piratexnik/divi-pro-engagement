@@ -32,11 +32,7 @@ final class Shortcodes {
 	 * @return string
 	 */
 	public function render_social_login_shortcode( array|string $atts = [] ): string {
-		if ( ! (bool) dpc_get_option( 'enable_social_auth', false ) ) {
-			return '';
-		}
-
-		if ( function_exists( 'et_core_is_fb_enabled' ) && et_core_is_fb_enabled() ) {
+		if ( ! (bool) dpc_get_option( 'enable_social_auth', false ) || Init::is_visual_builder_active() ) {
 			return '';
 		}
 
@@ -61,11 +57,7 @@ final class Shortcodes {
 	 * @return string
 	 */
 	public function render_post_rating_shortcode( array|string $atts = [] ): string {
-		if ( ! (bool) dpc_get_option( 'enable_post_rating', false ) ) {
-			return '';
-		}
-
-		if ( function_exists( 'et_core_is_fb_enabled' ) && et_core_is_fb_enabled() ) {
+		if ( ! (bool) dpc_get_option( 'enable_post_rating', false ) || Init::is_visual_builder_active() ) {
 			return '';
 		}
 

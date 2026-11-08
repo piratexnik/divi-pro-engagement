@@ -94,11 +94,12 @@ final class DiscordProvider {
 			return new \WP_Error( 'dpc_discord_user_error', __( 'Не удалось получить профиль Discord.', 'divi-pro-engagement' ) );
 		}
 
-		$id          = sanitize_text_field( (string) $user_data['id'] );
-		$email       = isset( $user_data['email'] ) ? sanitize_email( (string) $user_data['email'] ) : '';
-		$username    = isset( $user_data['username'] ) ? sanitize_text_field( (string) $user_data['username'] ) : '';
-		$global_name = ! empty( $user_data['global_name'] ) ? sanitize_text_field( (string) $user_data['global_name'] ) : '';
-		$name        = '' !== $global_name ? $global_name : $username;
+		$id             = sanitize_text_field( (string) $user_data['id'] );
+		$email_verified = ! empty( $user_data['verified'] ) && true === (bool) $user_data['verified'];
+		$email          = ( $email_verified && isset( $user_data['email'] ) ) ? sanitize_email( (string) $user_data['email'] ) : '';
+		$username       = isset( $user_data['username'] ) ? sanitize_text_field( (string) $user_data['username'] ) : '';
+		$global_name    = ! empty( $user_data['global_name'] ) ? sanitize_text_field( (string) $user_data['global_name'] ) : '';
+		$name           = '' !== $global_name ? $global_name : $username;
 
 		$avatar_hash = isset( $user_data['avatar'] ) ? (string) $user_data['avatar'] : '';
 		$avatar_url  = '';

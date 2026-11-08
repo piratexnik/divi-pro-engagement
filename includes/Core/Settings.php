@@ -100,10 +100,19 @@ final class Settings {
 						? sanitize_text_field( wp_unslash( (string) $input_data[ $field_key ] ) )
 						: '';
 					$clean_slug = sanitize_title( trim( $raw_slug, "/ \t\n\r\0\x0B" ) );
-					if ( in_array( $clean_slug, [ 'wp-admin', 'wp-login', 'wp-login.php', 'admin', 'login' ], true ) && 'wp-login.php' === $clean_slug ) {
+					$reserved   = [ 'wp-admin', 'wp-login', 'wp-login-php', 'wp-login.php', 'admin', 'login', 'dashboard', 'wp-json', 'xmlrpc', 'xmlrpc-php' ];
+					if ( in_array( $clean_slug, $reserved, true ) ) {
 						$clean_slug = '';
 					}
 					$existing[ $field_key ] = $clean_slug;
+				} elseif ( 'css_font_size' === $field_type ) {
+					$raw_size = isset( $input_data[ $field_key ] )
+						? trim( sanitize_text_field( wp_unslash( (string) $input_data[ $field_key ] ) ) )
+						: '';
+					if ( '' !== $raw_size && ( ! preg_match( '/^[a-zA-Z0-9\s\.\,\+\-\*\/\(\)\%]+$/', $raw_size ) || stripos( $raw_size, 'url(' ) !== false ) ) {
+						$raw_size = '';
+					}
+					$existing[ $field_key ] = $raw_size;
 				} elseif ( 'role' === $field_type ) {
 					$role = isset( $input_data[ $field_key ] )
 						? sanitize_key( wp_unslash( (string) $input_data[ $field_key ] ) )
@@ -194,7 +203,7 @@ final class Settings {
 			'comments' => [
 				'comments_skin'             => 'text',
 				'comments_form_position'    => 'text',
-				'comments_custom_font_size' => 'text',
+				'comments_custom_font_size' => 'css_font_size',
 				'comments_vote_access'      => 'text',
 				'comments_nudge_enable'     => 'checkbox',
 				'comments_nudge_position'   => 'text',

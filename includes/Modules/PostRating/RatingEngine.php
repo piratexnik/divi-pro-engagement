@@ -3,12 +3,15 @@ declare(strict_types=1);
 
 namespace DiviProEngagement\Modules\PostRating;
 
+use DiviProEngagement\Core\Init;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
 final class RatingEngine {
 	private const HASH_BUFFER_LIMIT = 200;
+	private const USER_VOTES_LIMIT  = 500;
 
 	private static ?self $instance = null;
 
@@ -33,11 +36,7 @@ final class RatingEngine {
 	 * @return string
 	 */
 	public function auto_insert_rating( string $content ): string {
-		if ( is_admin() || ! is_singular( 'post' ) || ! in_the_loop() || ! is_main_query() ) {
-			return $content;
-		}
-
-		if ( function_exists( 'et_core_is_fb_enabled' ) && et_core_is_fb_enabled() ) {
+		if ( is_admin() || ! is_singular( 'post' ) || ! in_the_loop() || ! is_main_query() || Init::is_visual_builder_active() ) {
 			return $content;
 		}
 
@@ -56,24 +55,25 @@ final class RatingEngine {
 
 	/**
 	 * Render the multilingual rating widget (Stars or Likes/Dislikes).
+	 * Does not bake guest $_COOKIE votes into server HTML to prevent page-cache pollution (FlyingPress).
 	 *
 	 * @param int|null $post_id Optional post ID.
 	 * @return string
 	 */
 	public function render_rating_widget( ?int $post_id = null ): string {
-		if ( function_exists( 'et_core_is_fb_enabled' ) && et_core_is_fb_enabled() ) {
+		if ( Init::is_visual_builder_active() ) {
 			return '';
 		}
 
 		$post_id = $post_id ?: (int) get_the_ID();
-		if ( $post_id <= 0 ) {
+		if ( $post_id <= 0 || post_password_required( $post_id ) ) {
 			return '';
 		}
 
 		$rating_type   = (string) dpc_get_option( 'rating_type', 'stars' );
 		$rating_access = (string) dpc_get_option( 'rating_access', 'all' );
 		$is_locked     = ( 'logged_in' === $rating_access && ! is_user_logged_in() );
-		$user_vote     = $this->get_current_visitor_vote( $post_id );
+		$user_vote     = $this->get_logged_in_user_vote( $post_id );
 
 		if ( ! in_array( $rating_type, [ 'stars', 'likes' ], true ) ) {
 			$rating_type = 'stars';
@@ -124,7 +124,7 @@ final class RatingEngine {
 				$count        = max( 0, (int) get_post_meta( $post_id, '_dpc_rating_count', true ) );
 				$active_stars = is_numeric( $user_vote ) && (int) $user_vote > 0 ? (int) $user_vote : (int) round( $avg );
 				?>
-				<div class="dpc-rating-stars" role="radiogroup" aria-label="Rating">
+				<div class="dpc-rating-stars" role="radiogroup" aria-label="Rating" data-avg-stars="<?php echo esc_attr( (string) (int) round( $avg ) ); ?>">
 					<?php for ( $i = 1; $i <= 5; $i++ ) : ?>
 						<button
 							type="button"
@@ -160,12 +160,15 @@ final class RatingEngine {
 	 * Handle AJAX post rating request.
 	 */
 	public function handle_ajax_rate_post(): void {
-		check_ajax_referer( 'dpc_frontend_nonce', 'nonce' );
+		if ( is_user_logged_in() && ! check_ajax_referer( 'dpc_frontend_nonce', 'nonce', false ) ) {
+			wp_send_json_error( [ 'code' => 'invalid_nonce' ], 403 );
+		}
 
 		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
 		$raw_val = isset( $_POST['value'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['value'] ) ) : '';
 
-		if ( $post_id <= 0 || ! get_post( $post_id ) ) {
+		$post = $post_id > 0 ? get_post( $post_id ) : null;
+		if ( ! ( $post instanceof \WP_Post ) || 'publish' !== $post->post_status || post_password_required( $post_id ) ) {
 			wp_send_json_error( [ 'code' => 'invalid_post' ], 400 );
 		}
 
@@ -214,23 +217,32 @@ final class RatingEngine {
 				: 0;
 
 			if ( $prev_vote >= 1 && $prev_vote <= 5 && $count > 0 ) {
-				// Recalculate existing vote without increasing total count
 				$sum = max( 0, $sum - $prev_vote + $stars );
 			} else {
 				++$count;
 				$sum += $stars;
 			}
 
+			unset( $user_votes[ $post_id ] );
 			$user_votes[ $post_id ] = $stars;
+			if ( count( $user_votes ) > self::USER_VOTES_LIMIT ) {
+				$user_votes = array_slice( $user_votes, -self::USER_VOTES_LIMIT, null, true );
+			}
 			update_user_meta( $user_id, '_dpc_post_votes', $user_votes );
+			$this->set_vote_cookie( $post_id, (string) $stars );
 		} else {
 			if ( $this->has_guest_voted( $post_id ) ) {
-				$avg = $count > 0 ? round( $sum / $count, 1 ) : 0.0;
+				$avg           = $count > 0 ? round( $sum / $count, 1 ) : 0.0;
+				$existing_vote = $this->get_guest_cookie_vote( $post_id );
+				$returned_vote = is_numeric( $existing_vote ) && (int) $existing_vote >= 1 && (int) $existing_vote <= 5
+					? (int) $existing_vote
+					: $stars;
+
 				return [
 					'type'          => 'stars',
 					'avg'           => number_format( $avg, 1, '.', '' ),
 					'count'         => $count,
-					'user_vote'     => $stars,
+					'user_vote'     => $returned_vote,
 					'already_voted' => true,
 				];
 			}
@@ -299,15 +311,23 @@ final class RatingEngine {
 				}
 			}
 
+			unset( $user_votes[ $post_id ] );
 			$user_votes[ $post_id ] = $vote;
+			if ( count( $user_votes ) > self::USER_VOTES_LIMIT ) {
+				$user_votes = array_slice( $user_votes, -self::USER_VOTES_LIMIT, null, true );
+			}
 			update_user_meta( $user_id, '_dpc_post_votes', $user_votes );
+			$this->set_vote_cookie( $post_id, $vote );
 		} else {
 			if ( $this->has_guest_voted( $post_id ) ) {
+				$existing_vote = $this->get_guest_cookie_vote( $post_id );
+				$returned_vote = in_array( $existing_vote, [ 'like', 'dislike' ], true ) ? $existing_vote : $vote;
+
 				return [
 					'type'          => 'likes',
 					'likes'         => $likes,
 					'dislikes'      => $dislikes,
-					'user_vote'     => $vote,
+					'user_vote'     => $returned_vote,
 					'already_voted' => true,
 				];
 			}
@@ -337,12 +357,12 @@ final class RatingEngine {
 	 * Output Schema.org AggregateRating JSON-LD in wp_head.
 	 */
 	public function output_schema_json_ld(): void {
-		if ( ! is_singular() || ! (bool) dpc_get_option( 'rating_schema_enable', 1 ) ) {
+		if ( Init::is_visual_builder_active() || ! is_singular() || ! (bool) dpc_get_option( 'rating_schema_enable', 1 ) ) {
 			return;
 		}
 
 		$post_id = (int) get_queried_object_id();
-		if ( $post_id <= 0 ) {
+		if ( $post_id <= 0 || 'publish' !== get_post_status( $post_id ) || post_password_required( $post_id ) ) {
 			return;
 		}
 
@@ -379,26 +399,37 @@ final class RatingEngine {
 	}
 
 	/**
-	 * Get the current visitor's stored vote for a post.
+	 * Get the logged-in user's stored vote for a post (never reads $_COOKIE on server HTML render).
 	 *
 	 * @param int $post_id Post ID.
 	 * @return string|int|null
 	 */
-	private function get_current_visitor_vote( int $post_id ): string|int|null {
-		if ( is_user_logged_in() ) {
-			$votes = get_user_meta( get_current_user_id(), '_dpc_post_votes', true );
-			if ( is_array( $votes ) && isset( $votes[ $post_id ] ) ) {
-				return $votes[ $post_id ];
-			}
+	private function get_logged_in_user_vote( int $post_id ): string|int|null {
+		if ( ! is_user_logged_in() ) {
 			return null;
 		}
 
+		$votes = get_user_meta( get_current_user_id(), '_dpc_post_votes', true );
+		if ( is_array( $votes ) && isset( $votes[ $post_id ] ) ) {
+			return $votes[ $post_id ];
+		}
+
+		return null;
+	}
+
+	/**
+	 * Read guest vote from cookie during AJAX requests only.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return string
+	 */
+	private function get_guest_cookie_vote( int $post_id ): string {
 		$cookie_name = 'dpc_rated_' . $post_id;
 		if ( isset( $_COOKIE[ $cookie_name ] ) ) {
 			return sanitize_text_field( wp_unslash( (string) $_COOKIE[ $cookie_name ] ) );
 		}
 
-		return null;
+		return '';
 	}
 
 	/**
@@ -408,8 +439,7 @@ final class RatingEngine {
 	 * @return bool
 	 */
 	private function has_guest_voted( int $post_id ): bool {
-		$cookie_name = 'dpc_rated_' . $post_id;
-		if ( isset( $_COOKIE[ $cookie_name ] ) ) {
+		if ( '' !== $this->get_guest_cookie_vote( $post_id ) ) {
 			return true;
 		}
 
@@ -418,7 +448,7 @@ final class RatingEngine {
 			return false;
 		}
 
-		return in_array( $this->get_visitor_short_hash(), $hashes, true );
+		return in_array( Init::get_visitor_short_hash(), $hashes, true );
 	}
 
 	/**
@@ -429,21 +459,19 @@ final class RatingEngine {
 	 */
 	private function record_guest_vote( int $post_id, string $value ): void {
 		$hashes = get_post_meta( $post_id, '_dpc_rating_hashes', true );
-		if ( ! is_array( $hashes ) ) {
-			$hashes = [];
-		}
-
-		$short_hash = $this->get_visitor_short_hash();
-		if ( ! in_array( $short_hash, $hashes, true ) ) {
-			$hashes[] = $short_hash;
-		}
-
-		if ( count( $hashes ) > self::HASH_BUFFER_LIMIT ) {
-			$hashes = array_slice( $hashes, -self::HASH_BUFFER_LIMIT );
-		}
+		$hashes = Init::append_visitor_hash( $hashes, self::HASH_BUFFER_LIMIT );
 
 		update_post_meta( $post_id, '_dpc_rating_hashes', $hashes );
+		$this->set_vote_cookie( $post_id, $value );
+	}
 
+	/**
+	 * Set browser cookie for client-side vote highlighting.
+	 *
+	 * @param int    $post_id Post ID.
+	 * @param string $value   Vote value.
+	 */
+	private function set_vote_cookie( int $post_id, string $value ): void {
 		if ( ! headers_sent() ) {
 			setcookie(
 				'dpc_rated_' . $post_id,
@@ -455,18 +483,6 @@ final class RatingEngine {
 				false
 			);
 		}
-	}
-
-	/**
-	 * Generate a 10-char fingerprint hash from visitor IP and User-Agent.
-	 *
-	 * @return string
-	 */
-	private function get_visitor_short_hash(): string {
-		$ip         = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( (string) $_SERVER['REMOTE_ADDR'] ) ) : '0.0.0.0';
-		$user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( (string) $_SERVER['HTTP_USER_AGENT'] ) ) : '';
-
-		return substr( md5( $ip . $user_agent ), 0, 10 );
 	}
 
 	/**

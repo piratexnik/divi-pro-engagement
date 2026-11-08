@@ -70,7 +70,7 @@ final class TelegramProvider {
 		$received_hash = (string) $request_params['hash'];
 		$auth_date     = (int) $request_params['auth_date'];
 
-		if ( ( time() - $auth_date ) > 86400 ) {
+		if ( abs( time() - $auth_date ) > 600 ) {
 			return new \WP_Error( 'dpc_telegram_expired', __( 'Данные авторизации Telegram устарели.', 'divi-pro-engagement' ) );
 		}
 
@@ -95,6 +95,12 @@ final class TelegramProvider {
 		if ( ! hash_equals( $calculated_hash, $received_hash ) ) {
 			return new \WP_Error( 'dpc_telegram_invalid_hash', __( 'Неверная криптографическая подпись Telegram.', 'divi-pro-engagement' ) );
 		}
+
+		$replay_key = 'dpc_tg_used_' . substr( $calculated_hash, 0, 32 );
+		if ( false !== get_transient( $replay_key ) ) {
+			return new \WP_Error( 'dpc_telegram_replay', __( 'Повторное использование подписи Telegram заблокировано.', 'divi-pro-engagement' ) );
+		}
+		set_transient( $replay_key, 1, 600 );
 
 		$social_id  = sanitize_text_field( (string) $check_data['id'] );
 		$first_name = isset( $check_data['first_name'] ) ? sanitize_text_field( $check_data['first_name'] ) : '';

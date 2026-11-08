@@ -95,10 +95,11 @@ final class GoogleProvider {
 			return new \WP_Error( 'dpc_google_userinfo_error', __( 'Не удалось получить профиль пользователя Google.', 'divi-pro-engagement' ) );
 		}
 
-		$sub     = sanitize_text_field( (string) $user_data['sub'] );
-		$email   = isset( $user_data['email'] ) ? sanitize_email( (string) $user_data['email'] ) : '';
-		$name    = isset( $user_data['name'] ) ? sanitize_text_field( (string) $user_data['name'] ) : '';
-		$picture = isset( $user_data['picture'] ) ? esc_url_raw( (string) $user_data['picture'] ) : '';
+		$sub            = sanitize_text_field( (string) $user_data['sub'] );
+		$email_verified = ! empty( $user_data['email_verified'] ) && true === (bool) $user_data['email_verified'];
+		$email          = ( $email_verified && isset( $user_data['email'] ) ) ? sanitize_email( (string) $user_data['email'] ) : '';
+		$name           = isset( $user_data['name'] ) ? sanitize_text_field( (string) $user_data['name'] ) : '';
+		$picture        = isset( $user_data['picture'] ) ? esc_url_raw( (string) $user_data['picture'] ) : '';
 
 		if ( '' === $name && '' !== $email ) {
 			$name = strstr( $email, '@', true ) ?: 'User';

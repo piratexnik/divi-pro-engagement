@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use DiviProEngagement\Core\Init;
 use DiviProEngagement\Modules\Auth\AuthManager;
 use DiviProEngagement\Modules\Comments\CommentsEngine;
 
@@ -8,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( function_exists( 'et_core_is_fb_enabled' ) && et_core_is_fb_enabled() ) {
+if ( Init::is_visual_builder_active() ) {
 	return;
 }
 
@@ -24,12 +25,15 @@ if ( ! $dpc_comments_open && 0 === $dpc_total_count ) {
 	return;
 }
 
-$dpc_engine        = CommentsEngine::get_instance();
-$dpc_strings       = CommentsEngine::get_strings();
+$dpc_engine           = CommentsEngine::get_instance();
+$dpc_strings          = CommentsEngine::get_strings();
 $dpc_skin             = (string) dpc_get_option( 'comments_skin', 'light' );
 $dpc_form_position    = (string) dpc_get_option( 'comments_form_position', 'bottom' );
 $dpc_custom_font_size = trim( (string) dpc_get_option( 'comments_custom_font_size', '' ) );
-$dpc_turnstile_on     = (bool) dpc_get_option( 'antispam_turnstile_enable', 0 );
+if ( '' !== $dpc_custom_font_size && ( ! preg_match( '/^[a-zA-Z0-9\s\.\,\+\-\*\/\(\)\%]+$/', $dpc_custom_font_size ) || stripos( $dpc_custom_font_size, 'url(' ) !== false ) ) {
+	$dpc_custom_font_size = '';
+}
+$dpc_turnstile_on  = (bool) dpc_get_option( 'antispam_turnstile_enable', 0 );
 $dpc_turnstile_key = (string) dpc_get_option( 'turnstile_site_key', '' );
 $dpc_turnstile_sec = (string) dpc_get_option( 'turnstile_secret_key', '' );
 $dpc_honeypot_on   = (bool) dpc_get_option( 'antispam_honeypot', 1 );
