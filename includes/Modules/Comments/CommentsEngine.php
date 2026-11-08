@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 namespace DiviProEngagement\Modules\Comments;
 
-use DiviProEngagement\Modules\Auth\AuthManager;
-
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -23,7 +21,6 @@ final class CommentsEngine {
 
 	private function __construct() {
 		add_filter( 'comments_template', [ $this, 'override_comments_template' ], 999 );
-		add_action( 'wp_footer', [ $this, 'render_floating_nudge' ], 30 );
 
 		add_action( 'wp_ajax_dpc_submit_comment', [ $this, 'handle_ajax_submit_comment' ] );
 		add_action( 'wp_ajax_nopriv_dpc_submit_comment', [ $this, 'handle_ajax_submit_comment' ] );
@@ -55,169 +52,223 @@ final class CommentsEngine {
 	}
 
 	/**
-	 * Render complete modern comments section (Form on top + Sortable Header + Comment Tree).
+	 * Detect current page language code ('uk', 'ru', or 'en').
 	 *
-	 * @param int|null $post_id Optional post ID.
+	 * @param string|null $lang_override Optional language code passed from frontend DOM <html lang>.
 	 * @return string
 	 */
-	public function render_comments_section( ?int $post_id = null ): string {
-		if ( function_exists( 'et_core_is_fb_enabled' ) && et_core_is_fb_enabled() ) {
-			return '';
+	public static function detect_lang_code( ?string $lang_override = null ): string {
+		$raw = '';
+
+		if ( null !== $lang_override && '' !== trim( $lang_override ) ) {
+			$raw = strtolower( trim( $lang_override ) );
+		} elseif ( function_exists( 'pll_current_language' ) ) {
+			$pll = pll_current_language( 'slug' );
+			if ( is_string( $pll ) && '' !== $pll ) {
+				$raw = strtolower( $pll );
+			}
 		}
 
-		$post_id = $post_id ?: (int) get_the_ID();
-		if ( $post_id <= 0 || post_password_required( $post_id ) ) {
-			return '';
+		if ( '' === $raw && defined( 'ICL_LANGUAGE_CODE' ) && is_string( ICL_LANGUAGE_CODE ) ) {
+			$raw = strtolower( ICL_LANGUAGE_CODE );
 		}
 
-		$comments_open = comments_open( $post_id );
-		$total_count   = (int) get_comments_number( $post_id );
-
-		if ( ! $comments_open && 0 === $total_count ) {
-			return '';
+		if ( '' === $raw ) {
+			$raw = strtolower( get_locale() );
 		}
 
-		$skin = (string) dpc_get_option( 'comments_skin', 'light' );
-		if ( ! in_array( $skin, [ 'light', 'dark' ], true ) ) {
-			$skin = 'light';
+		if ( str_starts_with( $raw, 'uk' ) || str_starts_with( $raw, 'ua' ) ) {
+			return 'uk';
 		}
 
-		$i18n          = $this->get_localized_strings();
-		$turnstile_on  = (bool) dpc_get_option( 'antispam_turnstile_enable', 0 );
-		$turnstile_key = (string) dpc_get_option( 'turnstile_site_key', '' );
-		$turnstile_sec = (string) dpc_get_option( 'turnstile_secret_key', '' );
-		$honeypot_on   = (bool) dpc_get_option( 'antispam_honeypot', 1 );
+		if ( str_starts_with( $raw, 'ru' ) ) {
+			return 'ru';
+		}
 
-		ob_start();
-		?>
-		<section id="dpc-comments" class="dpc-comments-area dpc-comments-skin-<?php echo esc_attr( $skin ); ?>" data-post-id="<?php echo esc_attr( (string) $post_id ); ?>">
-			<?php if ( $comments_open ) : ?>
-				<div class="dpc-comments-top-form-slot">
-					<div id="dpc-respond" class="dpc-comment-respond">
-						<div class="dpc-respond-top-bar">
-							<?php if ( (bool) dpc_get_option( 'enable_social_auth', false ) && (bool) dpc_get_option( 'auth_show_in_comments', true ) ) : ?>
-								<div class="dpc-respond-auth">
-									<?php
-									// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped inside render_auth_box().
-									echo AuthManager::get_instance()->render_auth_box( 'comments' );
-									?>
-								</div>
-							<?php endif; ?>
+		return 'en';
+	}
 
-							<div class="dpc-reply-indicator" style="display:none;">
-								<span class="dpc-reply-indicator__badge">
-									<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-									<span class="dpc-reply-indicator__name"></span>
-								</span>
-								<button type="button" class="dpc-cancel-reply-btn" aria-label="Cancel">&times;</button>
-							</div>
-						</div>
+	/**
+	 * Get localized UI dictionary strictly matching the current page language.
+	 *
+	 * @param string|null $lang_override Optional language override ('uk', 'ru', 'en').
+	 * @return array<string, string>
+	 */
+	public static function get_strings( ?string $lang_override = null ): array {
+		$lang = self::detect_lang_code( $lang_override );
 
-						<form id="dpc-comment-form" class="dpc-comment-form" method="post" novalidate>
-							<input type="hidden" name="post_id" value="<?php echo esc_attr( (string) $post_id ); ?>" />
-							<input type="hidden" name="comment_parent" id="dpc-comment-parent" value="0" />
+		if ( 'uk' === $lang ) {
+			return [
+				'lang'            => 'uk',
+				'name'            => "Ім'я *",
+				'placeholder'     => 'Напишіть коментар...',
+				'submit'          => 'Надіслати',
+				'reply'           => 'Відповісти',
+				'cancel_reply'    => 'Скасувати',
+				'sort_popular'    => 'Популярні',
+				'sort_newest'     => 'Нові',
+				'sort_oldest'     => 'Старі',
+				'author_badge'    => 'Автор',
+				'nudge'           => 'Залишити коментар',
+				'moderation'      => '✓ Дякуємо! Коментар надіслано на модерацію.',
+				'error_empty'     => 'Введіть текст коментаря.',
+				'error_name'      => "Вкажіть ваше ім'я.",
+				'error_turnstile' => 'Перевірка антиспам не пройдена.',
+				'error_closed'    => 'Коментарі закриті.',
+				'error_generic'   => 'Помилка збереження коментаря.',
+			];
+		}
 
-							<?php if ( ! is_user_logged_in() ) : ?>
-								<div class="dpc-form-row dpc-form-row--author">
-									<input
-										type="text"
-										name="author"
-										class="dpc-input dpc-author-input"
-										placeholder="<?php echo esc_attr( $i18n['name_placeholder'] ); ?>"
-										required
-										maxlength="100"
-										autocomplete="name"
-									/>
-								</div>
-							<?php endif; ?>
+		if ( 'ru' === $lang ) {
+			return [
+				'lang'            => 'ru',
+				'name'            => 'Имя *',
+				'placeholder'     => 'Напишите комментарий...',
+				'submit'          => 'Отправить',
+				'reply'           => 'Ответить',
+				'cancel_reply'    => 'Отменить',
+				'sort_popular'    => 'Популярные',
+				'sort_newest'     => 'Новые',
+				'sort_oldest'     => 'Старые',
+				'author_badge'    => 'Автор',
+				'nudge'           => 'Оставить комментарий',
+				'moderation'      => '✓ Спасибо! Комментарий отправлен на модерацию.',
+				'error_empty'     => 'Введите текст комментария.',
+				'error_name'      => 'Укажите ваше имя.',
+				'error_turnstile' => 'Проверка антиспама не пройдена.',
+				'error_closed'    => 'Комментарии закрыты.',
+				'error_generic'   => 'Ошибка сохранения комментария.',
+			];
+		}
 
-							<div class="dpc-form-row dpc-form-row--comment">
-								<textarea
-									name="comment"
-									id="dpc-comment-textarea"
-									class="dpc-textarea"
-									rows="3"
-									placeholder="<?php echo esc_attr( $i18n['comment_placeholder'] ); ?>"
-									required
-									maxlength="5000"
-								></textarea>
-							</div>
+		return [
+			'lang'            => 'en',
+			'name'            => 'Name *',
+			'placeholder'     => 'Write a comment...',
+			'submit'          => 'Send',
+			'reply'           => 'Reply',
+			'cancel_reply'    => 'Cancel',
+			'sort_popular'    => 'Popular',
+			'sort_newest'     => 'Newest',
+			'sort_oldest'     => 'Oldest',
+			'author_badge'    => 'Author',
+			'nudge'           => 'Leave a comment',
+			'moderation'      => '✓ Thank you! Your comment is awaiting moderation.',
+			'error_empty'     => 'Please enter a comment.',
+			'error_name'      => 'Please enter your name.',
+			'error_turnstile' => 'Anti-spam verification failed.',
+			'error_closed'    => 'Comments are closed.',
+			'error_generic'   => 'Failed to save comment.',
+		];
+	}
 
-							<?php if ( $honeypot_on ) : ?>
-								<div class="dpc-hp-wrap" aria-hidden="true">
-									<input type="text" name="dpc_hp_field" value="" tabindex="-1" autocomplete="off" />
-								</div>
-							<?php endif; ?>
+	/**
+	 * Format relative time strictly in the detected page language without mixing locales.
+	 *
+	 * @param int         $timestamp     Comment GMT unix timestamp.
+	 * @param string|null $lang_override Optional language override.
+	 * @return string
+	 */
+	public static function format_relative_time( int $timestamp, ?string $lang_override = null ): string {
+		$lang = self::detect_lang_code( $lang_override );
+		$diff = max( 1, time() - $timestamp );
 
-							<div class="dpc-form-footer">
-								<?php if ( ! is_user_logged_in() && $turnstile_on && '' !== $turnstile_key && '' !== $turnstile_sec ) : ?>
-									<div class="dpc-turnstile-wrap">
-										<div class="cf-turnstile" data-sitekey="<?php echo esc_attr( $turnstile_key ); ?>" data-theme="<?php echo esc_attr( $skin ); ?>"></div>
-									</div>
-								<?php endif; ?>
+		if ( $diff < 60 ) {
+			return match ( $lang ) {
+				'uk'    => 'щойно',
+				'ru'    => 'только что',
+				default => 'just now',
+			};
+		}
 
-								<button type="submit" class="dpc-submit-comment-btn">
-									<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-										<line x1="22" y1="2" x2="11" y2="13"/>
-										<polygon points="22 2 15 22 11 13 2 9 22 2"/>
-									</svg>
-									<span><?php echo esc_html( $i18n['submit_btn'] ); ?></span>
-								</button>
-							</div>
+		$minutes = (int) floor( $diff / 60 );
+		if ( $minutes < 60 ) {
+			return match ( $lang ) {
+				'uk'    => $minutes . ' хв тому',
+				'ru'    => $minutes . ' мин назад',
+				default => $minutes . 'm ago',
+			};
+		}
 
-							<div class="dpc-form-notice" role="status" aria-live="polite" style="display:none;"></div>
-						</form>
-					</div>
-				</div>
-			<?php endif; ?>
+		$hours = (int) floor( $diff / 3600 );
+		if ( $hours < 24 ) {
+			return match ( $lang ) {
+				'uk'    => $hours . ' год тому',
+				'ru'    => $hours . ' ч назад',
+				default => $hours . 'h ago',
+			};
+		}
 
-			<div class="dpc-comments-header">
-				<div class="dpc-comments-header__count">
-					<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-						<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-					</svg>
-					<span class="dpc-comments-total"><?php echo esc_html( (string) $total_count ); ?></span>
-				</div>
+		$days = (int) floor( $diff / 86400 );
+		if ( $days < 30 ) {
+			return match ( $lang ) {
+				'uk'    => $days . ' дн тому',
+				'ru'    => $days . ' дн назад',
+				default => $days . 'd ago',
+			};
+		}
 
-				<div class="dpc-comments-sort" role="tablist" aria-label="Sort comments">
-					<button type="button" class="dpc-sort-btn" data-sort="popular" title="Popular" aria-label="Popular">
-						<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
-						</svg>
-					</button>
-					<button type="button" class="dpc-sort-btn is-active" data-sort="newest" title="Newest" aria-label="Newest">
-						<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-						</svg>
-					</button>
-					<button type="button" class="dpc-sort-btn" data-sort="oldest" title="Oldest" aria-label="Oldest">
-						<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<circle cx="12" cy="12" r="10"/>
-							<polyline points="12 6 12 12 16 14"/>
-						</svg>
-					</button>
-				</div>
-			</div>
+		$months = (int) floor( $days / 30 );
+		if ( $months < 12 ) {
+			return match ( $lang ) {
+				'uk'    => $months . ' міс тому',
+				'ru'    => $months . ' мес назад',
+				default => $months . 'mo ago',
+			};
+		}
 
-			<ul class="dpc-comment-list">
-				<?php
-				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped inside get_sorted_comments_html().
-				echo $this->get_sorted_comments_html( $post_id, 'newest' );
-				?>
-			</ul>
-		</section>
-		<?php
-		return (string) ob_get_clean();
+		$years = max( 1, (int) floor( $days / 365 ) );
+		return match ( $lang ) {
+			'uk'    => $years . ' р тому',
+			'ru'    => $years . ' г назад',
+			default => $years . 'y ago',
+		};
+	}
+
+	/**
+	 * Safely retrieve public display name for a comment without leaking admin user_login.
+	 *
+	 * @param \WP_Comment $comment       Comment object.
+	 * @param string|null $lang_override Optional language override.
+	 * @return string
+	 */
+	public function get_safe_author_name( \WP_Comment $comment, ?string $lang_override = null ): string {
+		$strings = self::get_strings( $lang_override );
+		$user_id = (int) $comment->user_id;
+		$name    = trim( (string) get_comment_author( $comment ) );
+
+		if ( $user_id > 0 ) {
+			$user = get_userdata( $user_id );
+			if ( $user instanceof \WP_User ) {
+				$display_name = trim( (string) $user->display_name );
+				if ( '' !== $display_name ) {
+					$name = $display_name;
+				}
+
+				if ( user_can( $user, 'manage_options' ) ) {
+					if ( 'admin' === strtolower( $name ) || ( 'admin' === strtolower( (string) $user->user_login ) && strtolower( $name ) === strtolower( (string) $user->user_login ) ) ) {
+						$name = $strings['author_badge'];
+					}
+				}
+			}
+		}
+
+		if ( '' === $name || 'admin' === strtolower( $name ) ) {
+			return $strings['author_badge'];
+		}
+
+		return $name;
 	}
 
 	/**
 	 * Fetch and render comments sorted by 'popular', 'newest', or 'oldest'.
 	 *
-	 * @param int    $post_id Post ID.
-	 * @param string $sort    Sort mode.
+	 * @param int         $post_id       Post ID.
+	 * @param string      $sort          Sort mode.
+	 * @param string|null $lang_override Optional language override.
 	 * @return string
 	 */
-	public function get_sorted_comments_html( int $post_id, string $sort = 'newest' ): string {
+	public function get_sorted_comments_html( int $post_id, string $sort = 'newest', ?string $lang_override = null ): string {
 		$comments = get_comments(
 			[
 				'post_id' => $post_id,
@@ -269,7 +320,9 @@ final class CommentsEngine {
 				'style'      => 'ul',
 				'max_depth'  => 5,
 				'short_ping' => true,
-				'callback'   => [ $this, 'render_comment_item' ],
+				'callback'   => function ( \WP_Comment $comment, array $args, int $depth ) use ( $lang_override ): void {
+					$this->render_comment_item( $comment, $args, $depth, $lang_override );
+				},
 			],
 			$sorted_comments
 		);
@@ -279,33 +332,35 @@ final class CommentsEngine {
 	/**
 	 * Custom callback for rendering a single comment card.
 	 *
-	 * @param \WP_Comment          $comment Comment object.
-	 * @param array<string, mixed> $args    Display arguments.
-	 * @param int                  $depth   Comment nesting depth.
+	 * @param \WP_Comment          $comment       Comment object.
+	 * @param array<string, mixed> $args          Display arguments.
+	 * @param int                  $depth         Comment nesting depth.
+	 * @param string|null          $lang_override Optional language override.
 	 */
-	public function render_comment_item( \WP_Comment $comment, array $args, int $depth ): void {
+	public function render_comment_item( \WP_Comment $comment, array $args, int $depth, ?string $lang_override = null ): void {
+		$strings     = self::get_strings( $lang_override );
 		$comment_id  = (int) $comment->comment_ID;
 		$post_id     = (int) $comment->comment_post_ID;
 		$user_id     = (int) $comment->user_id;
 		$parent_id   = (int) $comment->comment_parent;
-		$author_name = get_comment_author( $comment );
+		$author_name = $this->get_safe_author_name( $comment, $lang_override );
 		$avatar_url  = get_avatar_url( $comment, [ 'size' => 88 ] );
 
-		$badge = '';
-		if ( $user_id > 0 && user_can( $user_id, 'manage_options' ) ) {
-			$badge = 'ADMIN';
-		} elseif ( $user_id > 0 && $user_id === (int) get_post_field( 'post_author', $post_id ) ) {
-			$badge = 'AUTHOR';
+		$is_verified_author = false;
+		if ( $user_id > 0 ) {
+			if ( user_can( $user_id, 'manage_options' ) || $user_id === (int) get_post_field( 'post_author', $post_id ) ) {
+				$is_verified_author = true;
+			}
 		}
 
 		$comment_timestamp = (int) get_comment_time( 'U', true, $comment );
-		$time_ago          = human_time_diff( $comment_timestamp, time() );
+		$time_ago          = self::format_relative_time( $comment_timestamp, $lang_override );
 
 		$parent_author = '';
 		if ( $parent_id > 0 ) {
 			$parent_comment = get_comment( $parent_id );
 			if ( $parent_comment instanceof \WP_Comment ) {
-				$parent_author = get_comment_author( $parent_comment );
+				$parent_author = $this->get_safe_author_name( $parent_comment, $lang_override );
 			}
 		}
 
@@ -325,15 +380,24 @@ final class CommentsEngine {
 					<header class="dpc-comment-card__meta">
 						<span class="dpc-comment-author"><?php echo esc_html( $author_name ); ?></span>
 
-						<?php if ( '' !== $badge ) : ?>
-							<span class="dpc-comment-badge dpc-comment-badge--<?php echo esc_attr( strtolower( $badge ) ); ?>"><?php echo esc_html( $badge ); ?></span>
+						<?php if ( $is_verified_author ) : ?>
+							<span class="dpc-badge-author">
+								<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+									<polyline points="20 6 9 17 4 12"/>
+								</svg>
+								<span data-i18n="author_badge"><?php echo esc_html( $strings['author_badge'] ); ?></span>
+							</span>
 						<?php endif; ?>
 
 						<?php if ( '' !== $parent_author ) : ?>
 							<span class="dpc-comment-parent-tag">&rarrhk; @<?php echo esc_html( $parent_author ); ?></span>
 						<?php endif; ?>
 
-						<time class="dpc-comment-time" datetime="<?php echo esc_attr( get_comment_date( 'c', $comment ) ); ?>">
+						<time
+							class="dpc-comment-time"
+							datetime="<?php echo esc_attr( get_comment_date( 'c', $comment ) ); ?>"
+							data-timestamp="<?php echo esc_attr( (string) $comment_timestamp ); ?>"
+						>
 							<?php echo esc_html( $time_ago ); ?>
 						</time>
 					</header>
@@ -372,7 +436,7 @@ final class CommentsEngine {
 									<polyline points="9 14 4 9 9 4"/>
 									<path d="M20 20v-7a4 4 0 0 0-4-4H4"/>
 								</svg>
-								<span>Reply</span>
+								<span data-i18n="reply"><?php echo esc_html( $strings['reply'] ); ?></span>
 							</button>
 						<?php endif; ?>
 					</footer>
@@ -381,7 +445,6 @@ final class CommentsEngine {
 				</div>
 			</article>
 		<?php
-		// Note: WordPress Walker_Comment automatically closes the </li> tag.
 	}
 
 	/**
@@ -390,17 +453,18 @@ final class CommentsEngine {
 	public function handle_ajax_submit_comment(): void {
 		check_ajax_referer( 'dpc_frontend_nonce', 'nonce' );
 
-		$i18n    = $this->get_localized_strings();
+		$lang    = isset( $_POST['lang'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['lang'] ) ) : null;
+		$strings = self::get_strings( $lang );
 		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
 		$parent  = isset( $_POST['comment_parent'] ) ? absint( $_POST['comment_parent'] ) : 0;
 		$content = isset( $_POST['comment'] ) ? trim( wp_kses_post( wp_unslash( (string) $_POST['comment'] ) ) ) : '';
 
 		if ( $post_id <= 0 || ! comments_open( $post_id ) ) {
-			wp_send_json_error( [ 'message' => $i18n['error_closed'] ], 400 );
+			wp_send_json_error( [ 'message' => $strings['error_closed'] ], 400 );
 		}
 
 		if ( '' === $content ) {
-			wp_send_json_error( [ 'message' => $i18n['error_empty'] ], 400 );
+			wp_send_json_error( [ 'message' => $strings['error_empty'] ], 400 );
 		}
 
 		// 1. AntiSpam: Honeypot check
@@ -424,7 +488,7 @@ final class CommentsEngine {
 					: '';
 
 				if ( ! $this->verify_turnstile_token( $token, $secret_key ) ) {
-					wp_send_json_error( [ 'message' => $i18n['error_turnstile'] ], 403 );
+					wp_send_json_error( [ 'message' => $strings['error_turnstile'] ], 403 );
 				}
 			}
 		}
@@ -433,11 +497,15 @@ final class CommentsEngine {
 		$user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( (string) $_SERVER['HTTP_USER_AGENT'] ) ) : '';
 
 		if ( $is_logged_in ) {
-			$user = wp_get_current_user();
+			$user           = wp_get_current_user();
+			$comment_author = trim( (string) $user->display_name );
+			if ( '' === $comment_author || ( user_can( $user, 'manage_options' ) && 'admin' === strtolower( $comment_author ) ) ) {
+				$comment_author = $strings['author_badge'];
+			}
 
 			$comment_data = [
 				'comment_post_ID'      => $post_id,
-				'comment_author'       => $user->display_name,
+				'comment_author'       => $comment_author,
 				'comment_author_email' => $user->user_email,
 				'comment_author_url'   => $user->user_url,
 				'comment_content'      => $content,
@@ -451,7 +519,7 @@ final class CommentsEngine {
 
 			$comment_id = wp_insert_comment( wp_slash( $comment_data ) );
 			if ( ! $comment_id ) {
-				wp_send_json_error( [ 'message' => $i18n['error_generic'] ], 500 );
+				wp_send_json_error( [ 'message' => $strings['error_generic'] ], 500 );
 			}
 
 			$comment_obj = get_comment( $comment_id );
@@ -459,7 +527,7 @@ final class CommentsEngine {
 
 			if ( $comment_obj instanceof \WP_Comment ) {
 				ob_start();
-				$this->render_comment_item( $comment_obj, [], 1 );
+				$this->render_comment_item( $comment_obj, [], 1, $lang );
 				echo '</li>';
 				$html = (string) ob_get_clean();
 			}
@@ -477,7 +545,7 @@ final class CommentsEngine {
 		// Guest comment: Name only, no email required, forced moderation (comment_approved = 0)
 		$author_name = isset( $_POST['author'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['author'] ) ) : '';
 		if ( '' === $author_name ) {
-			wp_send_json_error( [ 'message' => $i18n['error_name'] ], 400 );
+			wp_send_json_error( [ 'message' => $strings['error_name'] ], 400 );
 		}
 
 		add_filter( 'pre_option_require_name_email', '__return_zero' );
@@ -501,7 +569,7 @@ final class CommentsEngine {
 		remove_filter( 'pre_option_require_name_email', '__return_zero' );
 
 		if ( ! $comment_id ) {
-			wp_send_json_error( [ 'message' => $i18n['error_generic'] ], 500 );
+			wp_send_json_error( [ 'message' => $strings['error_generic'] ], 500 );
 		}
 
 		wp_notify_moderator( $comment_id );
@@ -509,7 +577,7 @@ final class CommentsEngine {
 		wp_send_json_success(
 			[
 				'status'  => 'moderation',
-				'message' => $i18n['moderation_msg'],
+				'message' => $strings['moderation'],
 			]
 		);
 	}
@@ -522,6 +590,7 @@ final class CommentsEngine {
 
 		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
 		$sort    = isset( $_POST['sort'] ) ? sanitize_key( wp_unslash( (string) $_POST['sort'] ) ) : 'newest';
+		$lang    = isset( $_POST['lang'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['lang'] ) ) : null;
 
 		if ( $post_id <= 0 ) {
 			wp_send_json_error( [ 'code' => 'invalid_post' ], 400 );
@@ -531,7 +600,7 @@ final class CommentsEngine {
 			$sort = 'newest';
 		}
 
-		$html = $this->get_sorted_comments_html( $post_id, $sort );
+		$html = $this->get_sorted_comments_html( $post_id, $sort, $lang );
 
 		wp_send_json_success(
 			[
@@ -626,44 +695,6 @@ final class CommentsEngine {
 				'user_vote' => $vote,
 			]
 		);
-	}
-
-	/**
-	 * Render floating nudge button in wp_footer when enabled.
-	 */
-	public function render_floating_nudge(): void {
-		if ( ! is_singular() || ! comments_open() ) {
-			return;
-		}
-
-		if ( function_exists( 'et_core_is_fb_enabled' ) && et_core_is_fb_enabled() ) {
-			return;
-		}
-
-		if ( ! (bool) dpc_get_option( 'comments_nudge_enable', 0 ) ) {
-			return;
-		}
-
-		$position = (string) dpc_get_option( 'comments_nudge_position', 'right' );
-		if ( ! in_array( $position, [ 'left', 'right' ], true ) ) {
-			$position = 'right';
-		}
-
-		$delay       = max( 1, min( 300, (int) dpc_get_option( 'comments_nudge_delay', 15 ) ) );
-		$custom_text = trim( (string) dpc_get_option( 'comments_nudge_text', '' ) );
-		$i18n        = $this->get_localized_strings();
-		$nudge_text  = '' !== $custom_text ? $custom_text : $i18n['nudge_text'];
-		?>
-		<div class="dpc-comment-nudge dpc-nudge--<?php echo esc_attr( $position ); ?>" data-delay="<?php echo esc_attr( (string) $delay ); ?>" aria-hidden="true">
-			<button type="button" class="dpc-comment-nudge__action">
-				<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-				</svg>
-				<span><?php echo esc_html( $nudge_text ); ?></span>
-			</button>
-			<button type="button" class="dpc-comment-nudge__close" aria-label="Close">&times;</button>
-		</div>
-		<?php
 	}
 
 	/**
@@ -788,57 +819,5 @@ final class CommentsEngine {
 		$user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( (string) $_SERVER['HTTP_USER_AGENT'] ) ) : '';
 
 		return substr( md5( $ip . $user_agent ), 0, 10 );
-	}
-
-	/**
-	 * Auto-detect site language (UK / RU / EN) for minimal UI strings.
-	 *
-	 * @return array<string, string>
-	 */
-	private function get_localized_strings(): array {
-		$locale = strtolower( get_locale() );
-
-		if ( str_starts_with( $locale, 'uk' ) ) {
-			return [
-				'name_placeholder'    => "Ім'я *",
-				'comment_placeholder' => 'Напишіть коментар...',
-				'submit_btn'          => 'Надіслати',
-				'moderation_msg'      => '✓ Дякуємо! Ваш коментар надіслано на перевірку модератором.',
-				'nudge_text'          => 'Залишити коментар',
-				'error_empty'         => 'Введіть текст коментаря.',
-				'error_name'          => "Вкажіть ваше ім'я.",
-				'error_turnstile'     => 'Перевірка антиспам не пройдена.',
-				'error_closed'        => 'Коментарі закриті.',
-				'error_generic'       => 'Помилка збереження коментаря.',
-			];
-		}
-
-		if ( str_starts_with( $locale, 'ru' ) ) {
-			return [
-				'name_placeholder'    => 'Имя *',
-				'comment_placeholder' => 'Напишите комментарий...',
-				'submit_btn'          => 'Отправить',
-				'moderation_msg'      => '✓ Спасибо! Ваш комментарий отправлен на проверку модератором.',
-				'nudge_text'          => 'Оставить комментарий',
-				'error_empty'         => 'Введите текст комментария.',
-				'error_name'          => 'Укажите ваше имя.',
-				'error_turnstile'     => 'Проверка антиспама не пройдена.',
-				'error_closed'        => 'Комментарии закрыты.',
-				'error_generic'       => 'Ошибка сохранения комментария.',
-			];
-		}
-
-		return [
-			'name_placeholder'    => 'Name *',
-			'comment_placeholder' => 'Write a comment...',
-			'submit_btn'          => 'Send',
-			'moderation_msg'      => '✓ Thank you! Your comment is awaiting moderation.',
-			'nudge_text'          => 'Leave a comment',
-			'error_empty'         => 'Please enter a comment.',
-			'error_name'          => 'Please enter your name.',
-			'error_turnstile'     => 'Anti-spam verification failed.',
-			'error_closed'        => 'Comments are closed.',
-			'error_generic'       => 'Failed to save comment.',
-		];
 	}
 }

@@ -709,6 +709,7 @@ final class Settings {
 
 	private function render_comments_tab(): void {
 		$comments_skin             = (string) dpc_get_option( 'comments_skin', 'light' );
+		$comments_form_position    = (string) dpc_get_option( 'comments_form_position', 'bottom' );
 		$comments_vote_access      = (string) dpc_get_option( 'comments_vote_access', 'all' );
 		$comments_nudge_enable     = (int) dpc_get_option( 'comments_nudge_enable', 0 );
 		$comments_nudge_position   = (string) dpc_get_option( 'comments_nudge_position', 'right' );
@@ -727,6 +728,14 @@ final class Settings {
 				<select id="comments_skin" name="dpc_settings[comments_skin]" class="regular-text">
 					<option value="light" <?php selected( 'light', $comments_skin ); ?>><?php echo esc_html__( 'Светлая тема', 'divi-pro-engagement' ); ?></option>
 					<option value="dark" <?php selected( 'dark', $comments_skin ); ?>><?php echo esc_html__( 'Темная тема', 'divi-pro-engagement' ); ?></option>
+				</select>
+			</div>
+
+			<div class="dpc-input-row">
+				<label for="comments_form_position"><strong><?php echo esc_html__( 'Расположение формы комментариев', 'divi-pro-engagement' ); ?></strong></label>
+				<select id="comments_form_position" name="dpc_settings[comments_form_position]" class="regular-text">
+					<option value="bottom" <?php selected( 'bottom', $comments_form_position ); ?>><?php echo esc_html__( 'Снизу — после списка комментариев', 'divi-pro-engagement' ); ?></option>
+					<option value="top" <?php selected( 'top', $comments_form_position ); ?>><?php echo esc_html__( 'Сверху — перед списком комментариев', 'divi-pro-engagement' ); ?></option>
 				</select>
 			</div>
 

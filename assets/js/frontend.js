@@ -8,6 +8,129 @@ jQuery(document).ready(function($) {
 	var nonce = (window.dpcFrontend && window.dpcFrontend.nonce) ? window.dpcFrontend.nonce : '';
 
 	// =========================================================================
+	// 0. Page Language Detection (<html lang>) & Dictionary Synchronization
+	// =========================================================================
+	var i18nDict = {
+		uk: {
+			name: "Ім'я *",
+			placeholder: 'Напишіть коментар...',
+			submit: 'Надіслати',
+			reply: 'Відповісти',
+			cancel_reply: 'Скасувати',
+			sort_popular: 'Популярні',
+			sort_newest: 'Нові',
+			sort_oldest: 'Старі',
+			author_badge: 'Автор',
+			nudge: 'Залишити коментар',
+			moderation: '✓ Дякуємо! Коментар надіслано на модерацію.'
+		},
+		ru: {
+			name: 'Имя *',
+			placeholder: 'Напишите комментарий...',
+			submit: 'Отправить',
+			reply: 'Ответить',
+			cancel_reply: 'Отменить',
+			sort_popular: 'Популярные',
+			sort_newest: 'Новые',
+			sort_oldest: 'Старые',
+			author_badge: 'Автор',
+			nudge: 'Оставить комментарий',
+			moderation: '✓ Спасибо! Комментарий отправлен на модерацию.'
+		},
+		en: {
+			name: 'Name *',
+			placeholder: 'Write a comment...',
+			submit: 'Send',
+			reply: 'Reply',
+			cancel_reply: 'Cancel',
+			sort_popular: 'Popular',
+			sort_newest: 'Newest',
+			sort_oldest: 'Oldest',
+			author_badge: 'Author',
+			nudge: 'Leave a comment',
+			moderation: '✓ Thank you! Your comment is awaiting moderation.'
+		}
+	};
+
+	function getPageLang() {
+		var htmlLang = (document.documentElement && document.documentElement.lang)
+			? document.documentElement.lang.toLowerCase().trim()
+			: '';
+		if (htmlLang.indexOf('uk') === 0 || htmlLang.indexOf('ua') === 0) {
+			return 'uk';
+		}
+		if (htmlLang.indexOf('ru') === 0) {
+			return 'ru';
+		}
+		return 'en';
+	}
+
+	function formatRelativeTime(timestamp, lang) {
+		var nowSec = Math.floor(Date.now() / 1000);
+		var diff = Math.max(1, nowSec - timestamp);
+
+		if (diff < 60) {
+			return lang === 'uk' ? 'щойно' : (lang === 'ru' ? 'только что' : 'just now');
+		}
+		var m = Math.floor(diff / 60);
+		if (m < 60) {
+			return lang === 'uk' ? (m + ' хв тому') : (lang === 'ru' ? (m + ' мин назад') : (m + 'm ago'));
+		}
+		var h = Math.floor(diff / 3600);
+		if (h < 24) {
+			return lang === 'uk' ? (h + ' год тому') : (lang === 'ru' ? (h + ' ч назад') : (h + 'h ago'));
+		}
+		var d = Math.floor(diff / 86400);
+		if (d < 30) {
+			return lang === 'uk' ? (d + ' дн тому') : (lang === 'ru' ? (d + ' дн назад') : (d + 'd ago'));
+		}
+		var mo = Math.floor(d / 30);
+		if (mo < 12) {
+			return lang === 'uk' ? (mo + ' міс тому') : (lang === 'ru' ? (mo + ' мес назад') : (mo + 'mo ago'));
+		}
+		var y = Math.max(1, Math.floor(d / 365));
+		return lang === 'uk' ? (y + ' р тому') : (lang === 'ru' ? (y + ' г назад') : (y + 'y ago'));
+	}
+
+	function syncCommentsLanguage() {
+		if (!document.documentElement || !document.documentElement.lang) {
+			return;
+		}
+		var lang = getPageLang();
+		var strings = i18nDict[lang] || i18nDict.en;
+
+		$('[data-i18n]').each(function() {
+			var key = $(this).attr('data-i18n');
+			if (key && strings[key]) {
+				$(this).text(strings[key]);
+			}
+		});
+
+		$('[data-i18n-placeholder]').each(function() {
+			var key = $(this).attr('data-i18n-placeholder');
+			if (key && strings[key]) {
+				$(this).attr('placeholder', strings[key]);
+			}
+		});
+
+		$('[data-i18n-title]').each(function() {
+			var key = $(this).attr('data-i18n-title');
+			if (key && strings[key]) {
+				$(this).attr('title', strings[key]).attr('aria-label', strings[key]);
+			}
+		});
+
+		$('.dpc-comment-time[data-timestamp]').each(function() {
+			var ts = parseInt($(this).attr('data-timestamp'), 10) || 0;
+			if (ts > 0) {
+				$(this).text(formatRelativeTime(ts, lang));
+			}
+		});
+	}
+
+	syncCommentsLanguage();
+
+	// =========================================================================
 	// 1. Telegram Direct JS Auth (Desktop & Mobile)
 	// =========================================================================
 	$(document).on('click', '.dpc-btn-telegram', function(e) {
@@ -222,14 +345,15 @@ jQuery(document).ready(function($) {
 	// =========================================================================
 	// 4. Comments Module: Reply, Cancel Reply, AJAX Submit, Sort, Vote
 	// =========================================================================
-	function resetCommentFormToTop() {
+	function resetCommentForm() {
 		var $respond = $('#dpc-respond');
-		var $topSlot = $('.dpc-comments-top-form-slot');
-		if ($respond.length && $topSlot.length) {
+		var $defaultSlot = $('.dpc-comments-form-slot');
+		if ($respond.length && $defaultSlot.length) {
 			$('#dpc-comment-parent').val('0');
 			$respond.find('.dpc-reply-indicator').hide();
 			$respond.find('.dpc-reply-indicator__name').text('');
-			$topSlot.append($respond);
+			$respond.find('.dpc-cancel-reply-btn').hide();
+			$defaultSlot.append($respond);
 		}
 	}
 
@@ -250,6 +374,7 @@ jQuery(document).ready(function($) {
 		$('#dpc-comment-parent').val(commentId);
 		$respond.find('.dpc-reply-indicator__name').text('@' + authorName);
 		$respond.find('.dpc-reply-indicator').css('display', 'inline-flex');
+		$respond.find('.dpc-cancel-reply-btn').css('display', 'inline-flex');
 		$respond.find('.dpc-form-notice').hide();
 
 		$replySlot.append($respond);
@@ -258,7 +383,7 @@ jQuery(document).ready(function($) {
 
 	$(document).on('click', '.dpc-cancel-reply-btn', function(e) {
 		e.preventDefault();
-		resetCommentFormToTop();
+		resetCommentForm();
 	});
 
 	// Submit Comment via AJAX
@@ -277,6 +402,7 @@ jQuery(document).ready(function($) {
 		var payload = $form.serializeArray();
 		payload.push({ name: 'action', value: 'dpc_submit_comment' });
 		payload.push({ name: 'nonce', value: nonce });
+		payload.push({ name: 'lang', value: getPageLang() });
 
 		$form.addClass('is-submitting');
 		$submitBtn.prop('disabled', true);
@@ -311,25 +437,34 @@ jQuery(document).ready(function($) {
 					if ($parentLi.length) {
 						var $childrenUl = $parentLi.children('ul.children');
 						if (!$childrenUl.length) {
-							$childrenUl = $('<ul class="children"></ul>');
+							$childrenUl = $('<ul class="children dpc-comment-children"></ul>');
 							$parentLi.append($childrenUl);
 						}
 						$childrenUl.append($newComment);
 					} else {
 						$('.dpc-comment-list').prepend($newComment);
 					}
-					resetCommentFormToTop();
+					resetCommentForm();
 				} else {
-					$('.dpc-comment-list').prepend($newComment);
+					var isBottomForm = $('#dpc-comments').hasClass('dpc-form-pos-bottom');
+					if (isBottomForm && $('.dpc-sort-btn.is-active').attr('data-sort') === 'oldest') {
+						$('.dpc-comment-list').append($newComment);
+					} else {
+						$('.dpc-comment-list').prepend($newComment);
+					}
 				}
 
 				if (typeof data.total_count !== 'undefined') {
 					$('.dpc-comments-total').text(data.total_count);
 				}
+
+				syncCommentsLanguage();
 			} else if (data.status === 'moderation') {
-				$notice.addClass('is-success').text(data.message).fadeIn(180);
+				var lang = getPageLang();
+				var modMsg = (i18nDict[lang] && i18nDict[lang].moderation) ? i18nDict[lang].moderation : data.message;
+				$notice.addClass('is-success').text(modMsg).fadeIn(180);
 				setTimeout(function() {
-					resetCommentFormToTop();
+					resetCommentForm();
 				}, 2200);
 			}
 		}).fail(function(xhr) {
@@ -360,7 +495,7 @@ jQuery(document).ready(function($) {
 			return;
 		}
 
-		resetCommentFormToTop();
+		resetCommentForm();
 
 		$section.find('.dpc-sort-btn').removeClass('is-active');
 		$btn.addClass('is-active');
@@ -374,7 +509,8 @@ jQuery(document).ready(function($) {
 				action: 'dpc_load_comments',
 				nonce: nonce,
 				post_id: postId,
-				sort: sort
+				sort: sort,
+				lang: getPageLang()
 			}
 		}).done(function(res) {
 			if (res && res.success && res.data) {
@@ -382,6 +518,7 @@ jQuery(document).ready(function($) {
 				if (typeof res.data.total_count !== 'undefined') {
 					$section.find('.dpc-comments-total').text(res.data.total_count);
 				}
+				syncCommentsLanguage();
 			}
 		}).always(function() {
 			$section.removeClass('is-loading');
@@ -444,45 +581,63 @@ jQuery(document).ready(function($) {
 	});
 
 	// =========================================================================
-	// 5. Floating Comment Nudge Widget
+	// 5. Floating Comment Nudge Widget (IntersectionObserver on #dpc-comment-form)
 	// =========================================================================
 	var $nudge = $('.dpc-comment-nudge');
-	var $commentsSection = $('#dpc-comments');
+	var commentFormEl = document.getElementById('dpc-comment-form');
 
-	if ($nudge.length && $commentsSection.length) {
+	if ($nudge.length && commentFormEl) {
 		var nudgeDismissed = false;
-		var commentsReached = false;
+		var delayReady = false;
+		var isFormInViewport = false;
 		var delaySec = parseInt($nudge.attr('data-delay'), 10) || 15;
 
-		function checkCommentsInView() {
-			if (nudgeDismissed) {
+		function updateNudgeVisibility() {
+			if (nudgeDismissed || !delayReady) {
+				$nudge.removeClass('is-visible').attr('aria-hidden', 'true');
 				return;
 			}
-			var rect = $commentsSection[0].getBoundingClientRect();
-			if (rect.top < window.innerHeight - 80) {
-				commentsReached = true;
+			if (isFormInViewport) {
 				$nudge.removeClass('is-visible').attr('aria-hidden', 'true');
+			} else {
+				$nudge.addClass('is-visible').attr('aria-hidden', 'false');
 			}
 		}
 
-		$(window).on('scroll.dpcNudge', checkCommentsInView);
-		checkCommentsInView();
+		if ('IntersectionObserver' in window) {
+			var observer = new IntersectionObserver(function(entries) {
+				entries.forEach(function(entry) {
+					isFormInViewport = entry.isIntersecting;
+					updateNudgeVisibility();
+				});
+			}, {
+				root: null,
+				threshold: 0.05
+			});
+			observer.observe(commentFormEl);
+		} else {
+			$(window).on('scroll.dpcNudge resize.dpcNudge', function() {
+				var rect = commentFormEl.getBoundingClientRect();
+				isFormInViewport = (rect.top < window.innerHeight && rect.bottom > 0);
+				updateNudgeVisibility();
+			});
+		}
 
 		setTimeout(function() {
-			checkCommentsInView();
-			if (!nudgeDismissed && !commentsReached) {
-				$nudge.addClass('is-visible').attr('aria-hidden', 'false');
+			delayReady = true;
+			if (!('IntersectionObserver' in window)) {
+				var rect = commentFormEl.getBoundingClientRect();
+				isFormInViewport = (rect.top < window.innerHeight && rect.bottom > 0);
 			}
+			updateNudgeVisibility();
 		}, delaySec * 1000);
 
 		$(document).on('click', '.dpc-comment-nudge__action', function(e) {
 			e.preventDefault();
-			nudgeDismissed = true;
 			$nudge.removeClass('is-visible').attr('aria-hidden', 'true');
 
-			var targetEl = document.getElementById('dpc-respond') || document.getElementById('dpc-comments');
-			if (targetEl && typeof targetEl.scrollIntoView === 'function') {
-				targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			if (typeof commentFormEl.scrollIntoView === 'function') {
+				commentFormEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 			}
 			setTimeout(function() {
 				$('#dpc-comment-textarea').trigger('focus');

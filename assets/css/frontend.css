@@ -316,7 +316,7 @@ button.dpc-btn:active {
 	position: absolute;
 	top: calc(100% + 10px);
 	left: 0;
-	min-width: 230px;
+	min-width: 220px;
 	padding: 12px 14px;
 	display: flex;
 	align-items: center;
@@ -335,7 +335,6 @@ button.dpc-btn:active {
 	box-sizing: border-box;
 }
 
-/* Light skin adaptation for dropdown */
 .dpc-user-logged.skin-light .dpc-user-dropdown {
 	background: #ffffff;
 	color: #0f172a;
@@ -369,8 +368,8 @@ button.dpc-btn:active {
 }
 
 .dpc-user-dropdown__avatar {
-	width: 42px !important;
-	height: 42px !important;
+	width: 40px !important;
+	height: 40px !important;
 	border-radius: 50% !important;
 	object-fit: cover;
 	flex-shrink: 0;
@@ -391,17 +390,7 @@ button.dpc-btn:active {
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	max-width: 135px;
-}
-
-.dpc-user-dropdown__handle {
-	font-size: 12px;
-	color: #94a3b8;
-	line-height: 1.2;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	max-width: 135px;
+	max-width: 140px;
 }
 
 .dpc-logout-btn {
@@ -590,12 +579,14 @@ button.dpc-btn:active {
 }
 
 /* ==========================================================================
-   4. Comments Module (Modern wpDiscuz-Style Light & Dark Skins)
+   4. Comments Module (Modern Tree Hierarchy & Light/Dark Skins)
    ========================================================================== */
 .dpc-comments-area {
-	--dpc-c-bg: #ffffff;
+	--dpc-c-root-bg: #ffffff;
+	--dpc-c-reply-bg: #f8fafc;
 	--dpc-c-surface: #f8fafc;
 	--dpc-c-border: #e2e8f0;
+	--dpc-c-tree-line: #cbd5e1;
 	--dpc-c-text: #0f172a;
 	--dpc-c-muted: #64748b;
 	--dpc-c-input-bg: #ffffff;
@@ -608,12 +599,14 @@ button.dpc-btn:active {
 }
 
 .dpc-comments-area.dpc-comments-skin-dark {
-	--dpc-c-bg: #18181b;
-	--dpc-c-surface: #202026;
+	--dpc-c-root-bg: #1e1e24;
+	--dpc-c-reply-bg: #18181d;
+	--dpc-c-surface: #1e1e24;
 	--dpc-c-border: #2e2e38;
+	--dpc-c-tree-line: #334155;
 	--dpc-c-text: #f8fafc;
 	--dpc-c-muted: #94a3b8;
-	--dpc-c-input-bg: #121216;
+	--dpc-c-input-bg: #141418;
 	--dpc-c-accent: #3b82f6;
 	--dpc-c-accent-hover: #2563eb;
 }
@@ -623,13 +616,13 @@ button.dpc-btn:active {
 	pointer-events: none;
 }
 
-/* Top Form Card */
+/* Comment Form Card */
 .dpc-comment-respond {
 	background: var(--dpc-c-surface);
 	border: 1px solid var(--dpc-c-border);
 	border-radius: 14px;
 	padding: 18px;
-	margin-bottom: 24px;
+	margin: 20px 0;
 	box-sizing: border-box;
 }
 
@@ -655,7 +648,7 @@ button.dpc-btn:active {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
-	padding: 4px 10px;
+	padding: 4px 12px;
 	background: rgba(59, 130, 246, 0.12);
 	color: var(--dpc-c-accent);
 	border-radius: 9999px;
@@ -667,21 +660,6 @@ button.dpc-btn:active {
 	display: inline-flex;
 	align-items: center;
 	gap: 5px;
-}
-
-.dpc-cancel-reply-btn {
-	background: transparent;
-	border: none;
-	color: inherit;
-	font-size: 16px;
-	line-height: 1;
-	padding: 0 2px;
-	cursor: pointer;
-	opacity: 0.75;
-}
-
-.dpc-cancel-reply-btn:hover {
-	opacity: 1;
 }
 
 .dpc-comment-form {
@@ -743,7 +721,29 @@ button.dpc-btn:active {
 	align-items: center;
 	justify-content: flex-end;
 	flex-wrap: wrap;
-	gap: 12px;
+	gap: 10px;
+}
+
+.dpc-cancel-reply-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 40px;
+	padding: 0 16px;
+	background: transparent;
+	color: var(--dpc-c-muted);
+	border: 1px solid var(--dpc-c-border);
+	border-radius: 10px;
+	font-size: 13.5px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.dpc-cancel-reply-btn:hover {
+	color: var(--dpc-c-text);
+	border-color: var(--dpc-c-muted);
+	background: rgba(148, 163, 184, 0.08);
 }
 
 .dpc-submit-comment-btn {
@@ -846,12 +846,12 @@ button.dpc-btn:active {
 }
 
 .dpc-sort-btn.is-active {
-	background: var(--dpc-c-bg);
+	background: var(--dpc-c-root-bg);
 	color: var(--dpc-c-accent);
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-/* Comment Tree & Cards */
+/* Comment Tree & Curved Branch Connectors (Discord / Reddit Style) */
 .dpc-comment-list,
 .dpc-comment-list ul.children {
 	list-style: none !important;
@@ -859,36 +859,76 @@ button.dpc-btn:active {
 	padding: 0;
 }
 
-.dpc-comment-list ul.children {
-	margin-left: 34px;
-	padding-left: 16px;
-	border-left: 2px solid var(--dpc-c-border);
-}
-
-@media (max-width: 767.98px) {
-	.dpc-comment-list ul.children {
-		margin-left: 12px;
-		padding-left: 10px;
-	}
-	.dpc-comment-list ul.children ul.children ul.children {
-		margin-left: 6px;
-		padding-left: 6px;
-	}
-}
-
 .dpc-comment-item {
-	margin-bottom: 16px;
+	position: relative;
+	margin-bottom: 14px;
 }
 
+/* Root comment card */
 .dpc-comment-card {
 	display: flex;
 	align-items: flex-start;
 	gap: 12px;
-	padding: 14px 16px;
-	background: var(--dpc-c-surface);
+	padding: 15px 18px;
+	background: var(--dpc-c-root-bg);
 	border: 1px solid var(--dpc-c-border);
 	border-radius: 12px;
+	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 	transition: border-color 0.25s ease;
+}
+
+/* Child branch container with vertical guide line */
+.dpc-comment-list ul.children,
+.dpc-comment-children {
+	position: relative;
+	margin-top: 10px;
+	margin-left: 22px;
+	padding-left: 22px;
+	border-left: 2px solid var(--dpc-c-tree-line);
+}
+
+/* Curved connector arc from vertical branch line to reply avatar */
+.dpc-comment-list ul.children > li.dpc-comment-item::before {
+	content: "";
+	position: absolute;
+	left: -24px;
+	top: 0;
+	width: 18px;
+	height: 24px;
+	border-left: 2px solid var(--dpc-c-tree-line);
+	border-bottom: 2px solid var(--dpc-c-tree-line);
+	border-bottom-left-radius: 10px;
+	pointer-events: none;
+}
+
+/* Compact reply card with subtle background distinction */
+.dpc-comment-list ul.children .dpc-comment-card {
+	padding: 11px 14px;
+	background: var(--dpc-c-reply-bg);
+	border-radius: 10px;
+	box-shadow: none;
+}
+
+.dpc-comment-list ul.children > li.dpc-comment-item {
+	margin-bottom: 10px;
+}
+
+@media (max-width: 767.98px) {
+	.dpc-comment-list ul.children,
+	.dpc-comment-children {
+		margin-left: 10px;
+		padding-left: 14px;
+	}
+	.dpc-comment-list ul.children > li.dpc-comment-item::before {
+		left: -16px;
+		width: 12px;
+		height: 20px;
+		border-bottom-left-radius: 8px;
+	}
+	.dpc-comment-list ul.children ul.children ul.children {
+		margin-left: 6px;
+		padding-left: 10px;
+	}
 }
 
 .dpc-comment-just-added > .dpc-comment-card {
@@ -896,12 +936,17 @@ button.dpc-btn:active {
 }
 
 .dpc-comment-card__avatar img {
-	width: 44px !important;
-	height: 44px !important;
+	width: 42px !important;
+	height: 42px !important;
 	border-radius: 50% !important;
 	object-fit: cover;
 	display: block;
 	flex-shrink: 0;
+}
+
+.dpc-comment-list ul.children .dpc-comment-card__avatar img {
+	width: 36px !important;
+	height: 36px !important;
 }
 
 @media (max-width: 767.98px) {
@@ -912,6 +957,10 @@ button.dpc-btn:active {
 	.dpc-comment-card__avatar img {
 		width: 36px !important;
 		height: 36px !important;
+	}
+	.dpc-comment-list ul.children .dpc-comment-card__avatar img {
+		width: 32px !important;
+		height: 32px !important;
 	}
 }
 
@@ -925,7 +974,7 @@ button.dpc-btn:active {
 	align-items: center;
 	flex-wrap: wrap;
 	gap: 8px;
-	margin-bottom: 6px;
+	margin-bottom: 5px;
 }
 
 .dpc-comment-author {
@@ -934,25 +983,24 @@ button.dpc-btn:active {
 	color: var(--dpc-c-text);
 }
 
-.dpc-comment-badge {
+/* Unified Verified Author Badge */
+.dpc-badge-author {
 	display: inline-flex;
 	align-items: center;
-	padding: 2px 7px;
-	border-radius: 5px;
-	font-size: 10px;
+	gap: 3px;
+	padding: 2px 8px;
+	border-radius: 9999px;
+	background: rgba(37, 99, 235, 0.12);
+	color: var(--dpc-c-accent);
+	font-size: 11px;
 	font-weight: 700;
-	letter-spacing: 0.04em;
-	text-transform: uppercase;
+	line-height: 1.2;
 }
 
-.dpc-comment-badge--admin {
-	background: rgba(239, 68, 68, 0.14);
-	color: #ef4444;
-}
-
-.dpc-comment-badge--author {
-	background: rgba(59, 130, 246, 0.14);
-	color: #3b82f6;
+.dpc-badge-author svg {
+	width: 11px;
+	height: 11px;
+	flex-shrink: 0;
 }
 
 .dpc-comment-parent-tag {
@@ -975,7 +1023,7 @@ button.dpc-btn:active {
 	line-height: 1.55;
 	color: var(--dpc-c-text);
 	word-wrap: break-word;
-	margin-bottom: 10px;
+	margin-bottom: 8px;
 }
 
 .dpc-comment-card__text p {
@@ -1004,7 +1052,7 @@ button.dpc-btn:active {
 	gap: 5px;
 	height: 28px;
 	padding: 0 9px;
-	background: var(--dpc-c-bg);
+	background: var(--dpc-c-root-bg);
 	color: var(--dpc-c-muted);
 	border: 1px solid var(--dpc-c-border);
 	border-radius: 9999px;
@@ -1055,23 +1103,23 @@ button.dpc-btn:active {
 .dpc-reply-form-slot > .dpc-comment-respond {
 	margin-top: 12px;
 	margin-bottom: 4px;
-	background: var(--dpc-c-bg);
+	background: var(--dpc-c-root-bg);
 }
 
 /* ==========================================================================
    5. Floating Comment Nudge Widget
    ========================================================================== */
 .dpc-comment-nudge {
-	position: fixed;
-	bottom: 24px;
-	z-index: 9998;
+	position: fixed !important;
+	bottom: 28px !important;
+	z-index: 999999 !important;
 	display: inline-flex;
 	align-items: center;
 	background: #1e1e24;
 	color: #ffffff;
 	border: 1px solid #2e2e38;
 	border-radius: 9999px;
-	box-shadow: 0 10px 25px rgba(0, 0, 0, 0.22);
+	box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
 	opacity: 0;
 	visibility: hidden;
 	transform: translateY(16px);
@@ -1081,11 +1129,13 @@ button.dpc-btn:active {
 }
 
 .dpc-nudge--right {
-	right: 24px;
+	right: 28px !important;
+	left: auto !important;
 }
 
 .dpc-nudge--left {
-	left: 24px;
+	left: 28px !important;
+	right: auto !important;
 }
 
 .dpc-comment-nudge.is-visible {
@@ -1101,7 +1151,7 @@ button.dpc-btn:active {
 	gap: 8px;
 	padding: 10px 14px 10px 16px;
 	background: transparent;
-	color: #ffffff;
+	color: #ffffff !important;
 	border: none;
 	font-size: 13.5px;
 	font-weight: 600;
@@ -1121,7 +1171,7 @@ button.dpc-btn:active {
 	height: 38px;
 	padding: 0;
 	background: transparent;
-	color: #94a3b8;
+	color: #94a3b8 !important;
 	border: none;
 	border-left: 1px solid #2e2e38;
 	font-size: 16px;
@@ -1130,18 +1180,18 @@ button.dpc-btn:active {
 }
 
 .dpc-comment-nudge__close:hover {
-	color: #ffffff;
+	color: #ffffff !important;
 	background: rgba(239, 68, 68, 0.25);
 }
 
 @media (max-width: 767.98px) {
 	.dpc-comment-nudge {
-		bottom: 16px;
+		bottom: 18px !important;
 	}
 	.dpc-nudge--right {
-		right: 16px;
+		right: 16px !important;
 	}
 	.dpc-nudge--left {
-		left: 16px;
+		left: 16px !important;
 	}
 }

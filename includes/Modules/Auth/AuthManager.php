@@ -364,19 +364,22 @@ final class AuthManager {
 			$current_user = wp_get_current_user();
 			$avatar_url   = get_avatar_url( $current_user->ID, [ 'size' => 96 ] );
 			$logout_url   = wp_logout_url( $current_url );
+			$public_name  = trim( (string) $current_user->display_name );
+			if ( '' === $public_name || ( user_can( $current_user, 'manage_options' ) && 'admin' === strtolower( $public_name ) ) ) {
+				$public_name = 'Author';
+			}
 
 			ob_start();
 			?>
 			<div class="dpc-user-logged skin-<?php echo esc_attr( $skin ); ?>" style="<?php echo esc_attr( $size_vars ); ?>">
-				<button type="button" class="dpc-user-avatar-trigger" aria-expanded="false" aria-label="<?php echo esc_attr( $current_user->display_name ); ?>">
-					<img class="dpc-user-logged__avatar" src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $current_user->display_name ); ?>" width="<?php echo esc_attr( (string) $size_desktop ); ?>" height="<?php echo esc_attr( (string) $size_desktop ); ?>" loading="lazy" />
+				<button type="button" class="dpc-user-avatar-trigger" aria-expanded="false" aria-label="<?php echo esc_attr( $public_name ); ?>">
+					<img class="dpc-user-logged__avatar" src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $public_name ); ?>" width="<?php echo esc_attr( (string) $size_desktop ); ?>" height="<?php echo esc_attr( (string) $size_desktop ); ?>" loading="lazy" />
 				</button>
 				<div class="dpc-user-dropdown" role="menu">
 					<div class="dpc-user-dropdown__profile">
-						<img class="dpc-user-dropdown__avatar" src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $current_user->display_name ); ?>" width="48" height="48" loading="lazy" />
+						<img class="dpc-user-dropdown__avatar" src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $public_name ); ?>" width="48" height="48" loading="lazy" />
 						<div class="dpc-user-dropdown__info">
-							<span class="dpc-user-dropdown__name"><?php echo esc_html( $current_user->display_name ); ?></span>
-							<span class="dpc-user-dropdown__handle">@<?php echo esc_html( $current_user->user_login ); ?></span>
+							<span class="dpc-user-dropdown__name"><?php echo esc_html( $public_name ); ?></span>
 						</div>
 					</div>
 					<a class="dpc-logout-btn dpc-user-logged__logout" href="<?php echo esc_url( $logout_url ); ?>" title="Logout" aria-label="Logout">
