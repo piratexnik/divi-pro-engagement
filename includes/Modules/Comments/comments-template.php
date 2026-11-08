@@ -26,9 +26,10 @@ if ( ! $dpc_comments_open && 0 === $dpc_total_count ) {
 
 $dpc_engine        = CommentsEngine::get_instance();
 $dpc_strings       = CommentsEngine::get_strings();
-$dpc_skin          = (string) dpc_get_option( 'comments_skin', 'light' );
-$dpc_form_position = (string) dpc_get_option( 'comments_form_position', 'bottom' );
-$dpc_turnstile_on  = (bool) dpc_get_option( 'antispam_turnstile_enable', 0 );
+$dpc_skin             = (string) dpc_get_option( 'comments_skin', 'light' );
+$dpc_form_position    = (string) dpc_get_option( 'comments_form_position', 'bottom' );
+$dpc_custom_font_size = trim( (string) dpc_get_option( 'comments_custom_font_size', '' ) );
+$dpc_turnstile_on     = (bool) dpc_get_option( 'antispam_turnstile_enable', 0 );
 $dpc_turnstile_key = (string) dpc_get_option( 'turnstile_site_key', '' );
 $dpc_turnstile_sec = (string) dpc_get_option( 'turnstile_secret_key', '' );
 $dpc_honeypot_on   = (bool) dpc_get_option( 'antispam_honeypot', 1 );
@@ -130,7 +131,7 @@ endif;
 $dpc_form_html = (string) ob_get_clean();
 ?>
 
-<section id="dpc-comments" class="dpc-comments-area dpc-comments-skin-<?php echo esc_attr( $dpc_skin ); ?> dpc-form-pos-<?php echo esc_attr( $dpc_form_position ); ?>" data-post-id="<?php echo esc_attr( (string) $dpc_post_id ); ?>">
+<section id="dpc-comments" class="dpc-comments-area dpc-comments-skin-<?php echo esc_attr( $dpc_skin ); ?> dpc-form-pos-<?php echo esc_attr( $dpc_form_position ); ?>" data-post-id="<?php echo esc_attr( (string) $dpc_post_id ); ?>"<?php echo '' !== $dpc_custom_font_size ? ' style="--dpc-custom-font-size: ' . esc_attr( $dpc_custom_font_size ) . ';"' : ''; ?>>
 	<?php
 	if ( 'top' === $dpc_form_position ) {
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above.

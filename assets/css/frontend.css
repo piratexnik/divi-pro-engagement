@@ -40,7 +40,7 @@ button.dpc-btn {
 	min-height: var(--dpc-current-size, 44px);
 	padding: 0 18px;
 	border-radius: 10px;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+	font-family: inherit;
 	font-size: 14px;
 	font-weight: 600;
 	line-height: 1;
@@ -438,7 +438,7 @@ button.dpc-btn:active {
 	background: #f8fafc;
 	border: 1px solid #e2e8f0;
 	border-radius: 9999px;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+	font-family: inherit;
 	user-select: none;
 	box-sizing: border-box;
 	transition: opacity 0.2s ease, border-color 0.2s ease;
@@ -593,7 +593,9 @@ button.dpc-btn:active {
 	--dpc-c-accent: #2563eb;
 	--dpc-c-accent-hover: #1d4ed8;
 	margin: 32px 0;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+	font-family: inherit;
+	font-size: var(--dpc-custom-font-size, inherit);
+	line-height: inherit;
 	color: var(--dpc-c-text);
 	box-sizing: border-box;
 }
@@ -877,18 +879,41 @@ button.dpc-btn:active {
 	transition: border-color 0.25s ease;
 }
 
-/* Child branch container with vertical guide line */
+/* All child containers: reset borders completely to prevent picket fence */
 .dpc-comment-list ul.children,
 .dpc-comment-children {
 	position: relative;
 	margin-top: 10px;
+	border-left: none !important;
+}
+
+/* Level 1 replies only: single clean indentation under root comment */
+.dpc-comment-list > li.dpc-comment-item > ul.children {
 	margin-left: 22px;
 	padding-left: 22px;
-	border-left: 2px solid var(--dpc-c-tree-line);
+}
+
+/* Deeper nesting (level 2+): zero additional indentation to keep clean column and avoid squeezing */
+.dpc-comment-list ul.children ul.children {
+	margin-left: 0 !important;
+	padding-left: 0 !important;
+	border-left: none !important;
+}
+
+/* Vertical guide line on level 1 replies: stretches to next sibling */
+.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item::after {
+	content: "";
+	position: absolute;
+	left: -24px;
+	top: 0;
+	bottom: -10px;
+	width: 2px;
+	background-color: var(--dpc-c-tree-line);
+	pointer-events: none;
 }
 
 /* Curved connector arc from vertical branch line to reply avatar */
-.dpc-comment-list ul.children > li.dpc-comment-item::before {
+.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item::before {
 	content: "";
 	position: absolute;
 	left: -24px;
@@ -899,6 +924,23 @@ button.dpc-btn:active {
 	border-bottom: 2px solid var(--dpc-c-tree-line);
 	border-bottom-left-radius: 10px;
 	pointer-events: none;
+}
+
+/* First reply: curve starts from root card boundary */
+.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item:first-child::before {
+	top: -10px;
+	height: 34px;
+}
+
+/* Last reply: vertical line stops at the arc elbow, never hangs below */
+.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item:last-child::after {
+	display: none !important;
+}
+
+/* Deeper nesting: hide redundant connector lines */
+.dpc-comment-list ul.children ul.children > li.dpc-comment-item::before,
+.dpc-comment-list ul.children ul.children > li.dpc-comment-item::after {
+	display: none !important;
 }
 
 /* Compact reply card with subtle background distinction */
@@ -914,20 +956,22 @@ button.dpc-btn:active {
 }
 
 @media (max-width: 767.98px) {
-	.dpc-comment-list ul.children,
-	.dpc-comment-children {
+	.dpc-comment-list > li.dpc-comment-item > ul.children {
 		margin-left: 10px;
 		padding-left: 14px;
 	}
-	.dpc-comment-list ul.children > li.dpc-comment-item::before {
+	.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item::after {
+		left: -16px;
+	}
+	.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item::before {
 		left: -16px;
 		width: 12px;
 		height: 20px;
 		border-bottom-left-radius: 8px;
 	}
-	.dpc-comment-list ul.children ul.children ul.children {
-		margin-left: 6px;
-		padding-left: 10px;
+	.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item:first-child::before {
+		top: -10px;
+		height: 30px;
 	}
 }
 
@@ -1019,8 +1063,8 @@ button.dpc-btn:active {
 }
 
 .dpc-comment-card__text {
-	font-size: 14.5px;
-	line-height: 1.55;
+	font-size: var(--dpc-custom-font-size, inherit);
+	line-height: inherit;
 	color: var(--dpc-c-text);
 	word-wrap: break-word;
 	margin-bottom: 8px;

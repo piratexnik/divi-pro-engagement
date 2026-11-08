@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace DiviProEngagement\Core;
 
+use DiviProEngagement\Modules\PostRating\RatingEngine;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -24,6 +26,8 @@ final class Settings {
 		add_action( 'admin_menu', [ $this, 'register_menu_page' ] );
 		add_action( 'admin_init', [ $this, 'register_settings' ] );
 		add_filter( 'plugin_action_links_' . DPC_BASENAME, [ $this, 'add_settings_action_link' ] );
+		add_action( 'admin_init', [ $this, 'handle_kksr_import' ] );
+		add_action( 'admin_notices', [ $this, 'render_kksr_import_notice' ] );
 	}
 
 	public function register_menu_page(): void {
@@ -189,6 +193,8 @@ final class Settings {
 			],
 			'comments' => [
 				'comments_skin'             => 'text',
+				'comments_form_position'    => 'text',
+				'comments_custom_font_size' => 'text',
 				'comments_vote_access'      => 'text',
 				'comments_nudge_enable'     => 'checkbox',
 				'comments_nudge_position'   => 'text',
@@ -704,12 +710,34 @@ final class Settings {
 				</div>
 			</div>
 		</div>
+
+		<div class="dpc-card">
+			<h2><?php echo esc_html__( 'Миграция оценок из kk Star Ratings', 'divi-pro-engagement' ); ?></h2>
+			<p class="dpc-card-subtitle">
+				<?php echo esc_html__( 'Если вы ранее использовали плагин kk Star Ratings, вы можете перенести все накопленные голоса и средний балл в Divi Engagement одним нажатием.', 'divi-pro-engagement' ); ?>
+			</p>
+			<p>
+				<?php
+				$import_url = wp_nonce_url(
+					admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&tab=rating&dpc_action=import_kksr' ),
+					'dpc_import_kksr_action',
+					'dpc_import_kksr_nonce'
+				);
+				?>
+				<a href="<?php echo esc_url( $import_url ); ?>"
+				   class="button button-secondary"
+				   onclick="return confirm('<?php echo esc_js( __( 'Вы уверены, что хотите импортировать оценки из kk Star Ratings? Оценки статей будут обновлены.', 'divi-pro-engagement' ) ); ?>');">
+					<?php echo esc_html__( '🔄 Импортировать оценки из kk Star Ratings', 'divi-pro-engagement' ); ?>
+				</a>
+			</p>
+		</div>
 		<?php
 	}
 
 	private function render_comments_tab(): void {
 		$comments_skin             = (string) dpc_get_option( 'comments_skin', 'light' );
 		$comments_form_position    = (string) dpc_get_option( 'comments_form_position', 'bottom' );
+		$comments_custom_font_size = (string) dpc_get_option( 'comments_custom_font_size', '' );
 		$comments_vote_access      = (string) dpc_get_option( 'comments_vote_access', 'all' );
 		$comments_nudge_enable     = (int) dpc_get_option( 'comments_nudge_enable', 0 );
 		$comments_nudge_position   = (string) dpc_get_option( 'comments_nudge_position', 'right' );
@@ -737,6 +765,21 @@ final class Settings {
 					<option value="bottom" <?php selected( 'bottom', $comments_form_position ); ?>><?php echo esc_html__( 'Снизу — после списка комментариев', 'divi-pro-engagement' ); ?></option>
 					<option value="top" <?php selected( 'top', $comments_form_position ); ?>><?php echo esc_html__( 'Сверху — перед списком комментариев', 'divi-pro-engagement' ); ?></option>
 				</select>
+			</div>
+
+			<div class="dpc-input-row">
+				<label for="comments_custom_font_size"><strong><?php echo esc_html__( 'Кастомный размер шрифта комментариев', 'divi-pro-engagement' ); ?></strong></label>
+				<input
+					type="text"
+					id="comments_custom_font_size"
+					name="dpc_settings[comments_custom_font_size]"
+					placeholder="clamp(15px, 14px + 0.3vw, 17px)"
+					value="<?php echo esc_attr( $comments_custom_font_size ); ?>"
+					class="regular-text"
+				/>
+				<p class="description" style="margin-top: 4px; color: #646970;">
+					<?php echo esc_html__( 'Например: clamp(15px, 14px + 0.3vw, 17px) или 16px. Оставьте пустым, чтобы полностью наследовался размер шрифта темы Divi 5.', 'divi-pro-engagement' ); ?>
+				</p>
 			</div>
 
 			<div class="dpc-input-row">
@@ -829,6 +872,58 @@ final class Settings {
 				<label for="turnstile_secret_key">Turnstile Secret Key</label>
 				<input type="password" id="turnstile_secret_key" name="dpc_settings[turnstile_secret_key]" value="<?php echo esc_attr( $turnstile_secret_key ); ?>" class="regular-text">
 			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Handle kk Star Ratings import action.
+	 */
+	public function handle_kksr_import(): void {
+		if ( ! isset( $_GET['dpc_action'] ) || 'import_kksr' !== $_GET['dpc_action'] ) {
+			return;
+		}
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'У вас нет прав для выполнения этого действия.', 'divi-pro-engagement' ) );
+		}
+
+		check_admin_referer( 'dpc_import_kksr_action', 'dpc_import_kksr_nonce' );
+
+		$rating_engine = new RatingEngine();
+		$imported      = $rating_engine->import_from_kk_star_ratings();
+
+		$redirect_url = add_query_arg(
+			[
+				'page'         => self::PAGE_SLUG,
+				'tab'          => 'rating',
+				'dpc_imported' => $imported,
+			],
+			admin_url( 'admin.php' )
+		);
+
+		wp_safe_redirect( $redirect_url );
+		exit;
+	}
+
+	/**
+	 * Render notice after kk Star Ratings import.
+	 */
+	public function render_kksr_import_notice(): void {
+		if ( ! isset( $_GET['dpc_imported'] ) || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$count = absint( $_GET['dpc_imported'] );
+		?>
+		<div class="notice notice-success is-dismissible">
+			<p>
+				<strong><?php echo esc_html__( 'Divi Engagement:', 'divi-pro-engagement' ); ?></strong>
+				<?php
+				/* translators: %d: number of posts */
+				printf( esc_html__( 'Успешно импортированы оценки для %d записей из kk Star Ratings!', 'divi-pro-engagement' ), $count );
+				?>
+			</p>
 		</div>
 		<?php
 	}

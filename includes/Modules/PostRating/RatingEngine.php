@@ -468,4 +468,72 @@ final class RatingEngine {
 
 		return substr( md5( $ip . $user_agent ), 0, 10 );
 	}
+
+	/**
+	 * Import ratings from kk Star Ratings plugin postmeta fields (_kksr_casts, _kksr_ratings, _kksr_avg).
+	 *
+	 * @return int Number of posts migrated.
+	 */
+	public function import_from_kk_star_ratings(): int {
+		global $wpdb;
+
+		// Query all post IDs having _kksr_casts > 0
+		$post_ids = $wpdb->get_col(
+			"SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_kksr_casts' AND CAST(meta_value AS UNSIGNED) > 0"
+		);
+
+		if ( empty( $post_ids ) || ! is_array( $post_ids ) ) {
+			return 0;
+		}
+
+		$imported_count = 0;
+
+		foreach ( $post_ids as $pid ) {
+			$post_id = (int) $pid;
+			if ( $post_id <= 0 ) {
+				continue;
+			}
+
+			$count = absint( get_post_meta( $post_id, '_kksr_casts', true ) );
+			$sum   = (float) get_post_meta( $post_id, '_kksr_ratings', true );
+
+			if ( $count <= 0 ) {
+				continue;
+			}
+
+			$avg_meta = get_post_meta( $post_id, '_kksr_avg', true );
+			if ( '' !== $avg_meta && is_numeric( $avg_meta ) && (float) $avg_meta > 0 ) {
+				$avg = round( (float) $avg_meta, 2 );
+			} elseif ( $sum > 0 ) {
+				$avg = round( $sum / $count, 2 );
+			} else {
+				$avg = 5.0;
+			}
+
+			// Clamp between 1.0 and 5.0
+			$avg = max( 1.0, min( 5.0, $avg ) );
+			$sum = (int) round( $avg * $count );
+
+			update_post_meta( $post_id, '_dpc_rating_count', $count );
+			update_post_meta( $post_id, '_dpc_rating_sum', $sum );
+			update_post_meta( $post_id, '_dpc_rating_avg', $avg );
+
+			// Convert to Likes and Dislikes if currently empty
+			$existing_likes    = get_post_meta( $post_id, '_dpc_likes_count', true );
+			$existing_dislikes = get_post_meta( $post_id, '_dpc_dislikes_count', true );
+
+			if ( '' === $existing_likes && '' === $existing_dislikes ) {
+				$like_ratio     = max( 0.0, min( 1.0, ( $avg - 1.0 ) / 4.0 ) );
+				$likes_count    = (int) round( $count * $like_ratio );
+				$dislikes_count = max( 0, $count - $likes_count );
+
+				update_post_meta( $post_id, '_dpc_likes_count', $likes_count );
+				update_post_meta( $post_id, '_dpc_dislikes_count', $dislikes_count );
+			}
+
+			++$imported_count;
+		}
+
+		return $imported_count;
+	}
 }
