@@ -33,7 +33,7 @@ final class Updater {
 	}
 
 	/**
-	 * Hook into update transient before saving to inject new versions from GitHub.
+	 * Hook into update transient before saving to inject new versions from GitHub CDN.
 	 *
 	 * @param mixed $transient Transient data object.
 	 * @return mixed
@@ -86,7 +86,7 @@ final class Updater {
 	}
 
 	/**
-	 * Filter update_plugins on read to ensure state consistency.
+	 * Filter update_plugins on read to ensure state consistency without any HTTP requests.
 	 *
 	 * @param mixed $transient Transient data object.
 	 * @return mixed
@@ -117,7 +117,7 @@ final class Updater {
 	 *
 	 * @return string
 	 */
-	private function get_installed_version(): string {
+	public function get_installed_version(): string {
 		$main_file = DPC_PATH . 'divi-pro-engagement.php';
 
 		if ( file_exists( $main_file ) ) {
@@ -261,7 +261,7 @@ final class Updater {
 		delete_site_transient( 'update_plugins' );
 		wp_clean_plugins_cache( true );
 
-		// 2. Query GitHub immediately with anti-cache
+		// 2. Query GitHub CDN directly with anti-cache
 		$release = $this->get_latest_release( true );
 
 		// 3. Inject result into update_plugins immediately so WP sees it without waiting
@@ -329,7 +329,7 @@ final class Updater {
 	}
 
 	/**
-	 * Fetch latest release from GitHub API or cache.
+	 * Fetch latest release from raw.githubusercontent.com CDN (unlimited, fast) or transient cache.
 	 *
 	 * @param bool $force_refresh Skip transient cache.
 	 * @return array{version: string, download_url: string, body: string}
@@ -337,88 +337,61 @@ final class Updater {
 	private function get_latest_release( bool $force_refresh = false ): array {
 		if ( ! $force_refresh ) {
 			$cached = get_transient( self::TRANSIENT_KEY );
-			if ( is_array( $cached ) && ! empty( $cached['version'] ) ) {
-				return $cached;
+			if ( is_array( $cached ) ) {
+				if ( ! empty( $cached['error'] ) ) {
+					return [
+						'version'      => '',
+						'download_url' => '',
+						'body'         => '',
+					];
+				}
+				if ( ! empty( $cached['version'] ) && ! empty( $cached['download_url'] ) ) {
+					return $cached;
+				}
 			}
 		}
 
-		$headers = [
-			'Accept'        => 'application/vnd.github.v3+json',
-			'Cache-Control' => 'no-cache, no-store, must-revalidate',
-			'User-Agent'    => 'WordPress/' . get_bloginfo( 'version' ) . '; DiviProEngagement/' . DPC_VERSION,
-		];
+		$raw_url  = 'https://raw.githubusercontent.com/' . self::GITHUB_REPO . '/main/divi-pro-engagement.php?t=' . time();
+		$response = wp_remote_get(
+			$raw_url,
+			[
+				'timeout' => 5,
+				'headers' => [
+					'Cache-Control' => 'no-cache, no-store, must-revalidate',
+					'User-Agent'    => 'WordPress/' . get_bloginfo( 'version' ) . '; DiviProEngagement/' . DPC_VERSION,
+				],
+			]
+		);
 
-		$release_data = [
+		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
+			// Cache negative result for 10 minutes to protect shared hosting from repeated calls
+			set_transient( self::TRANSIENT_KEY, [ 'error' => true ], 10 * MINUTE_IN_SECONDS );
+			return [
+				'version'      => '',
+				'download_url' => '',
+				'body'         => '',
+			];
+		}
+
+		$body = wp_remote_retrieve_body( $response );
+		if ( preg_match( '/\*\s*Version:\s*([0-9.]+)/i', $body, $matches ) ) {
+			$remote_version = trim( $matches[1] );
+			$release_data   = [
+				'version'      => $remote_version,
+				'download_url' => 'https://github.com/' . self::GITHUB_REPO . "/archive/refs/tags/v{$remote_version}.zip",
+				'body'         => '',
+			];
+
+			set_transient( self::TRANSIENT_KEY, $release_data, self::CACHE_LIFETIME );
+			return $release_data;
+		}
+
+		// Negative cache on regex parse failure
+		set_transient( self::TRANSIENT_KEY, [ 'error' => true ], 10 * MINUTE_IN_SECONDS );
+		return [
 			'version'      => '',
 			'download_url' => '',
 			'body'         => '',
 		];
-
-		// 1. Check Releases
-		$url      = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/releases/latest?t=' . time();
-		$response = wp_remote_get(
-			$url,
-			[
-				'timeout' => 10,
-				'headers' => $headers,
-			]
-		);
-
-		if ( ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response ) ) {
-			$data = json_decode( wp_remote_retrieve_body( $response ), true );
-			if ( is_array( $data ) && ! empty( $data['tag_name'] ) ) {
-				$tag            = (string) $data['tag_name'];
-				$remote_version = ltrim( $tag, 'vV' );
-				$download_url   = "https://github.com/" . self::GITHUB_REPO . "/archive/refs/tags/{$tag}.zip";
-
-				if ( ! empty( $data['assets'] ) && is_array( $data['assets'] ) ) {
-					foreach ( $data['assets'] as $asset ) {
-						if ( isset( $asset['name'], $asset['browser_download_url'] ) && str_ends_with( (string) $asset['name'], '.zip' ) ) {
-							$download_url = (string) $asset['browser_download_url'];
-							break;
-						}
-					}
-				}
-
-				$release_data = [
-					'version'      => $remote_version,
-					'download_url' => $download_url,
-					'body'         => (string) ( $data['body'] ?? '' ),
-				];
-			}
-		}
-
-		// 2. Fallback to tags if releases are not published yet
-		if ( empty( $release_data['version'] ) ) {
-			$tags_url      = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/tags?t=' . time();
-			$tags_response = wp_remote_get(
-				$tags_url,
-				[
-					'timeout' => 10,
-					'headers' => $headers,
-				]
-			);
-
-			if ( ! is_wp_error( $tags_response ) && 200 === wp_remote_retrieve_response_code( $tags_response ) ) {
-				$tags_data = json_decode( wp_remote_retrieve_body( $tags_response ), true );
-				if ( is_array( $tags_data ) && ! empty( $tags_data[0]['name'] ) ) {
-					$tag            = (string) $tags_data[0]['name'];
-					$remote_version = ltrim( $tag, 'vV' );
-					$download_url   = "https://github.com/" . self::GITHUB_REPO . "/archive/refs/tags/{$tag}.zip";
-
-					$release_data = [
-						'version'      => $remote_version,
-						'download_url' => $download_url,
-						'body'         => '',
-					];
-				}
-			}
-		}
-
-		if ( ! empty( $release_data['version'] ) ) {
-			set_transient( self::TRANSIENT_KEY, $release_data, self::CACHE_LIFETIME );
-		}
-
-		return $release_data;
 	}
 }
