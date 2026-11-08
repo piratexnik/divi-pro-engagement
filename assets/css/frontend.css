@@ -2,12 +2,24 @@
  * Divi Pro Engagement - Frontend Styles
  */
 
+/* ==========================================================================
+   1. Social Login Buttons & Responsive Styles
+   ========================================================================== */
 .dpc-social-login {
+	--dpc-size-desktop: 44px;
+	--dpc-size-mobile: 40px;
+	--dpc-current-size: var(--dpc-size-desktop);
 	margin: 14px 0;
 	padding: 0;
 	background: transparent;
 	border: none;
 	box-sizing: border-box;
+}
+
+@media (max-width: 767.98px) {
+	.dpc-social-login {
+		--dpc-current-size: var(--dpc-size-mobile);
+	}
 }
 
 .dpc-social-login__buttons {
@@ -17,35 +29,6 @@
 	align-items: center;
 }
 
-/* Layouts */
-.dpc-social-login.style-inline .dpc-social-login__buttons,
-.dpc-social-login.style-icon .dpc-social-login__buttons {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 10px;
-	align-items: center;
-}
-
-.dpc-social-login.style-column .dpc-social-login__buttons {
-	display: inline-flex;
-	flex-direction: column;
-	align-items: stretch;
-	gap: 10px;
-	min-width: 220px;
-}
-
-.dpc-social-login.style-fullwidth .dpc-social-login__buttons {
-	display: flex;
-	flex-direction: column;
-	align-items: stretch;
-	gap: 10px;
-	width: 100%;
-}
-
-.dpc-social-login.style-fullwidth .dpc-btn {
-	width: 100%;
-}
-
 /* Base Button */
 .dpc-btn,
 button.dpc-btn {
@@ -53,9 +36,10 @@ button.dpc-btn {
 	align-items: center;
 	justify-content: center;
 	gap: 10px;
-	height: 42px;
+	height: var(--dpc-current-size, 44px);
+	min-height: var(--dpc-current-size, 44px);
 	padding: 0 18px;
-	border-radius: 8px;
+	border-radius: 10px;
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
 	font-size: 14px;
 	font-weight: 600;
@@ -100,17 +84,90 @@ button.dpc-btn:active {
 	white-space: nowrap;
 }
 
-/* Style: Icon Only */
-.dpc-social-login.style-icon .dpc-btn {
-	width: 42px;
-	height: 42px;
-	padding: 0;
-	border-radius: 10px;
-	justify-content: center;
+/* Desktop Layouts (>= 768px) */
+@media (min-width: 768px) {
+	.dpc-social-login.dpc-desktop-style-inline .dpc-social-login__buttons,
+	.dpc-social-login.dpc-desktop-style-icon .dpc-social-login__buttons {
+		display: flex;
+		flex-direction: row;
+		flex-wrap: wrap;
+		gap: 10px;
+		align-items: center;
+	}
+
+	.dpc-social-login.dpc-desktop-style-icon .dpc-btn {
+		width: var(--dpc-size-desktop, 44px);
+		height: var(--dpc-size-desktop, 44px);
+		padding: 0;
+		justify-content: center;
+	}
+
+	.dpc-social-login.dpc-desktop-style-icon .dpc-btn__label {
+		display: none !important;
+	}
+
+	.dpc-social-login.dpc-desktop-style-column .dpc-social-login__buttons {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 10px;
+		min-width: 220px;
+	}
+
+	.dpc-social-login.dpc-desktop-style-fullwidth .dpc-social-login__buttons {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 10px;
+		width: 100%;
+	}
+
+	.dpc-social-login.dpc-desktop-style-fullwidth .dpc-btn {
+		width: 100%;
+	}
 }
 
-.dpc-social-login.style-icon .dpc-btn__label {
-	display: none !important;
+/* Mobile Layouts (< 768px) */
+@media (max-width: 767.98px) {
+	.dpc-social-login.dpc-mobile-style-inline .dpc-social-login__buttons,
+	.dpc-social-login.dpc-mobile-style-icon .dpc-social-login__buttons {
+		display: flex;
+		flex-direction: row;
+		flex-wrap: wrap;
+		gap: 10px;
+		align-items: center;
+	}
+
+	.dpc-social-login.dpc-mobile-style-icon .dpc-btn {
+		width: var(--dpc-size-mobile, 40px);
+		height: var(--dpc-size-mobile, 40px);
+		padding: 0;
+		justify-content: center;
+	}
+
+	.dpc-social-login.dpc-mobile-style-icon .dpc-btn__label {
+		display: none !important;
+	}
+
+	.dpc-social-login.dpc-mobile-style-column .dpc-social-login__buttons {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 10px;
+		min-width: 210px;
+	}
+
+	.dpc-social-login.dpc-mobile-style-fullwidth .dpc-social-login__buttons {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 10px;
+		width: 100%;
+	}
+
+	.dpc-social-login.dpc-mobile-style-fullwidth .dpc-btn {
+		width: 100%;
+	}
 }
 
 /* Skin: Brand Colors (Default) */
@@ -200,61 +257,340 @@ button.dpc-btn:active {
 	color: #111827 !important;
 }
 
-/* Logged-in User Pill */
+/* ==========================================================================
+   2. Logged-in User Avatar Trigger & Dropdown Card (WP Admin Bar Style)
+   ========================================================================== */
 .dpc-user-logged {
+	--dpc-size-desktop: 44px;
+	--dpc-size-mobile: 40px;
+	--dpc-avatar-size: var(--dpc-size-desktop);
+	position: relative;
 	display: inline-flex;
 	align-items: center;
-	gap: 10px;
-	margin: 10px 0;
-	padding: 5px 8px 5px 6px;
-	background: #f8fafc;
-	border: 1px solid #e2e8f0;
-	border-radius: 9999px;
-	max-width: 100%;
+	vertical-align: middle;
+	margin: 8px 0;
+	z-index: 999;
+}
+
+@media (max-width: 767.98px) {
+	.dpc-user-logged {
+		--dpc-avatar-size: var(--dpc-size-mobile);
+	}
+}
+
+.dpc-user-avatar-trigger {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--dpc-avatar-size, 44px);
+	height: var(--dpc-avatar-size, 44px);
+	padding: 0;
+	margin: 0;
+	background: transparent;
+	border: 2px solid rgba(148, 163, 184, 0.35);
+	border-radius: 50%;
+	cursor: pointer;
+	overflow: hidden;
+	transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+	outline: none;
 	box-sizing: border-box;
 }
 
+.dpc-user-avatar-trigger:hover,
+.dpc-user-logged.is-open .dpc-user-avatar-trigger {
+	transform: scale(1.04);
+	border-color: #3b82f6;
+	box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+}
+
 .dpc-user-logged__avatar {
-	width: 32px !important;
-	height: 32px !important;
+	width: 100% !important;
+	height: 100% !important;
+	border-radius: 50% !important;
+	object-fit: cover;
+	display: block;
+}
+
+/* Dropdown Popup Card */
+.dpc-user-dropdown {
+	position: absolute;
+	top: calc(100% + 10px);
+	left: 0;
+	min-width: 230px;
+	padding: 12px 14px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	background: #1e1e24;
+	color: #f8fafc;
+	border: 1px solid #2e2e38;
+	border-radius: 12px;
+	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY(6px);
+	transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
+	pointer-events: none;
+	box-sizing: border-box;
+}
+
+/* Light skin adaptation for dropdown */
+.dpc-user-logged.skin-light .dpc-user-dropdown {
+	background: #ffffff;
+	color: #0f172a;
+	border: 1px solid #e2e8f0;
+	box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+
+/* Bridge gap for smooth hover on desktop */
+.dpc-user-dropdown::before {
+	content: "";
+	position: absolute;
+	top: -12px;
+	left: 0;
+	right: 0;
+	height: 12px;
+}
+
+.dpc-user-logged.is-open .dpc-user-dropdown {
+	opacity: 1;
+	visibility: visible;
+	transform: translateY(0);
+	pointer-events: auto;
+}
+
+@media (min-width: 768px) {
+	.dpc-user-logged:hover .dpc-user-dropdown {
+		opacity: 1;
+		visibility: visible;
+		transform: translateY(0);
+		pointer-events: auto;
+	}
+}
+
+.dpc-user-dropdown__profile {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+}
+
+.dpc-user-dropdown__avatar {
+	width: 42px !important;
+	height: 42px !important;
 	border-radius: 50% !important;
 	object-fit: cover;
 	flex-shrink: 0;
 	display: block;
 }
 
-.dpc-user-logged__name {
+.dpc-user-dropdown__info {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.dpc-user-dropdown__name {
 	font-size: 14px;
 	font-weight: 600;
-	color: #1e293b;
+	color: inherit;
+	line-height: 1.25;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 135px;
+}
+
+.dpc-user-dropdown__handle {
+	font-size: 12px;
+	color: #94a3b8;
 	line-height: 1.2;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	max-width: 200px;
+	max-width: 135px;
 }
 
-.dpc-user-logged__logout {
+.dpc-logout-btn {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 30px;
-	height: 30px;
-	margin-left: auto;
-	border-radius: 50%;
-	color: #64748b !important;
+	width: 34px;
+	height: 34px;
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.06);
+	color: #cbd5e1 !important;
 	text-decoration: none !important;
-	transition: background-color 0.2s ease, color 0.2s ease;
+	transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
 	flex-shrink: 0;
 }
 
-.dpc-user-logged__logout:hover {
-	background-color: #fee2e2;
-	color: #dc2626 !important;
+.dpc-user-logged.skin-light .dpc-logout-btn {
+	background: #f1f5f9;
+	color: #475569 !important;
 }
 
-.dpc-user-logged__logout svg {
+.dpc-logout-btn:hover {
+	background-color: rgba(239, 68, 68, 0.18) !important;
+	color: #ef4444 !important;
+	transform: translateX(1px);
+}
+
+.dpc-logout-btn svg {
 	width: 18px;
 	height: 18px;
 	display: block;
+}
+
+/* ==========================================================================
+   3. Post Rating Module (Stars & Likes/Dislikes)
+   ========================================================================== */
+.dpc-post-rating {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin: 18px 0;
+	padding: 8px 14px;
+	background: #f8fafc;
+	border: 1px solid #e2e8f0;
+	border-radius: 9999px;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+	user-select: none;
+	box-sizing: border-box;
+	transition: opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.dpc-post-rating.is-loading {
+	opacity: 0.65;
+	pointer-events: none;
+}
+
+/* Stars Mode */
+.dpc-rating-stars {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+}
+
+.dpc-star-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2px;
+	margin: 0;
+	background: transparent;
+	border: none;
+	color: #cbd5e1;
+	cursor: pointer;
+	transition: transform 0.15s ease, color 0.15s ease;
+	outline: none;
+}
+
+.dpc-star-btn:hover {
+	transform: scale(1.15);
+}
+
+.dpc-rating-stars:not(.is-hovering) .dpc-star-btn.is-active,
+.dpc-rating-stars.is-hovering .dpc-star-btn.is-hover {
+	color: #f59e0b;
+}
+
+.dpc-rating-meta {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 14px;
+	line-height: 1;
+	color: #334155;
+}
+
+.dpc-rating-avg {
+	font-size: 15px;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.dpc-rating-count-wrap {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	color: #64748b;
+	font-size: 13px;
+}
+
+.dpc-rating-user-icon {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+/* Likes / Dislikes Mode */
+.dpc-post-rating--likes {
+	padding: 6px 8px;
+}
+
+.dpc-rating-likes {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.dpc-like-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 36px;
+	padding: 0 14px;
+	background: #ffffff;
+	color: #475569;
+	border: 1px solid #cbd5e1;
+	border-radius: 9999px;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	outline: none;
+}
+
+.dpc-like-btn:hover {
+	transform: translateY(-1px);
+	border-color: #94a3b8;
+	color: #0f172a;
+}
+
+.dpc-like-up.is-active {
+	background: #ecfdf5;
+	border-color: #10b981;
+	color: #059669;
+}
+
+.dpc-like-down.is-active {
+	background: #fef2f2;
+	border-color: #ef4444;
+	color: #dc2626;
+}
+
+/* Lock Tooltip & Shake Animation */
+.dpc-rating-lock-tooltip {
+	display: none;
+	font-size: 14px;
+	line-height: 1;
+}
+
+.dpc-post-rating.is-locked .dpc-rating-lock-tooltip,
+.dpc-post-rating.show-lock .dpc-rating-lock-tooltip {
+	display: inline-flex;
+}
+
+@keyframes dpc-shake {
+	0%, 100% { transform: translateX(0); }
+	20%, 60% { transform: translateX(-5px); }
+	40%, 80% { transform: translateX(5px); }
+}
+
+.dpc-post-rating.is-shaking {
+	animation: dpc-shake 0.4s ease-in-out;
+	border-color: #ef4444;
 }

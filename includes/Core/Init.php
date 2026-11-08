@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace DiviProEngagement\Core;
 
 use DiviProEngagement\Modules\Auth\AuthManager;
+use DiviProEngagement\Modules\PostRating\RatingEngine;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -30,6 +31,7 @@ final class Init {
 		}
 
 		CustomLogin::get_instance();
+		Shortcodes::get_instance();
 
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_frontend_assets' ] );
 
@@ -40,13 +42,12 @@ final class Init {
 
 		// Module 2: Post Rating (Schema.org JSON-LD + [dpc_post_rating])
 		if ( (bool) dpc_get_option( 'enable_post_rating', false ) ) {
-			// Stub: Modules\PostRating\RatingManager will be loaded here.
+			RatingEngine::get_instance();
 		}
 
 		// Module 3: Social Authentication (REST API + [dpc_social_login])
 		if ( (bool) dpc_get_option( 'enable_social_auth', false ) ) {
 			AuthManager::get_instance();
-			Shortcodes::get_instance();
 
 			if ( (bool) dpc_get_option( 'auth_show_in_comments', true ) ) {
 				add_action( 'comment_form_before_fields', [ $this, 'render_comment_form_social_login' ] );
@@ -90,6 +91,8 @@ final class Init {
 			'dpc-frontend',
 			'dpcFrontend',
 			[
+				'ajaxUrl'             => admin_url( 'admin-ajax.php' ),
+				'nonce'               => wp_create_nonce( 'dpc_frontend_nonce' ),
 				'telegramCallbackUrl' => home_url( '/wp-json/dpc/v1/auth/telegram' ),
 			]
 		);
@@ -105,7 +108,7 @@ final class Init {
 	}
 
 	/**
-	 * Replace default "Logged in as..." text in comment form with the compact User Pill.
+	 * Replace default "Logged in as..." text in comment form with the compact User Avatar Dropdown.
 	 *
 	 * @param array<string, mixed> $defaults Comment form defaults.
 	 * @return array<string, mixed>

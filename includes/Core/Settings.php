@@ -109,6 +109,14 @@ final class Settings {
 						$role = 'subscriber';
 					}
 					$existing[ $field_key ] = $role;
+				} elseif ( 'number' === $field_type ) {
+					$val = isset( $input_data[ $field_key ] ) ? absint( $input_data[ $field_key ] ) : 40;
+					if ( $val < 24 ) {
+						$val = 24;
+					} elseif ( $val > 100 ) {
+						$val = 100;
+					}
+					$existing[ $field_key ] = $val;
 				} else {
 					$existing[ $field_key ] = isset( $input_data[ $field_key ] )
 						? sanitize_text_field( wp_unslash( (string) $input_data[ $field_key ] ) )
@@ -136,30 +144,34 @@ final class Settings {
 				'hide_admin_bar'      => 'checkbox',
 			],
 			'auth'     => [
-				'auth_show_in_comments'       => 'checkbox',
-				'auth_select_account'         => 'checkbox',
-				'auth_auto_link_email'        => 'checkbox',
-				'auth_disable_admin'          => 'checkbox',
-				'auth_default_role'           => 'role',
-				'auth_shortcode_style'        => 'text',
-				'auth_shortcode_skin'         => 'text',
-				'auth_comments_style'         => 'text',
-				'auth_comments_skin'          => 'text',
-				'auth_google_enable'          => 'checkbox',
-				'auth_google_client_id'       => 'text',
-				'auth_google_client_secret'   => 'text',
-				'auth_telegram_enable'        => 'checkbox',
-				'auth_telegram_bot_username'  => 'text',
-				'auth_telegram_bot_token'     => 'text',
-				'auth_facebook_enable'        => 'checkbox',
-				'auth_facebook_app_id'        => 'text',
-				'auth_facebook_app_secret'    => 'text',
-				'auth_discord_enable'         => 'checkbox',
-				'auth_discord_client_id'      => 'text',
-				'auth_discord_client_secret'  => 'text',
-				'auth_twitter_enable'         => 'checkbox',
-				'auth_twitter_client_id'      => 'text',
-				'auth_twitter_client_secret'  => 'text',
+				'auth_show_in_comments'        => 'checkbox',
+				'auth_select_account'          => 'checkbox',
+				'auth_auto_link_email'         => 'checkbox',
+				'auth_disable_admin'           => 'checkbox',
+				'auth_default_role'            => 'role',
+				'auth_shortcode_style_desktop' => 'text',
+				'auth_shortcode_style_mobile'  => 'text',
+				'auth_shortcode_skin'          => 'text',
+				'auth_comments_style_desktop'  => 'text',
+				'auth_comments_style_mobile'   => 'text',
+				'auth_comments_skin'           => 'text',
+				'auth_size_desktop'            => 'number',
+				'auth_size_mobile'             => 'number',
+				'auth_google_enable'           => 'checkbox',
+				'auth_google_client_id'        => 'text',
+				'auth_google_client_secret'    => 'text',
+				'auth_telegram_enable'         => 'checkbox',
+				'auth_telegram_bot_username'   => 'text',
+				'auth_telegram_bot_token'      => 'text',
+				'auth_facebook_enable'         => 'checkbox',
+				'auth_facebook_app_id'         => 'text',
+				'auth_facebook_app_secret'     => 'text',
+				'auth_discord_enable'          => 'checkbox',
+				'auth_discord_client_id'       => 'text',
+				'auth_discord_client_secret'   => 'text',
+				'auth_twitter_enable'          => 'checkbox',
+				'auth_twitter_client_id'       => 'text',
+				'auth_twitter_client_secret'   => 'text',
 			],
 			'rating'   => [
 				'rating_type'          => 'text',
@@ -358,17 +370,21 @@ final class Settings {
 	}
 
 	private function render_auth_tab(): void {
-		$base_callback         = home_url( '/wp-json/dpc/v1/auth/' );
-		$auth_show_in_comments = (int) dpc_get_option( 'auth_show_in_comments', 1 );
-		$auth_select_account   = (int) dpc_get_option( 'auth_select_account', 1 );
-		$auth_auto_link_email  = (int) dpc_get_option( 'auth_auto_link_email', 1 );
-		$auth_disable_admin    = (int) dpc_get_option( 'auth_disable_admin', 1 );
-		$auth_default_role     = (string) dpc_get_option( 'auth_default_role', 'subscriber' );
-		$auth_shortcode_style  = (string) dpc_get_option( 'auth_shortcode_style', 'inline' );
-		$auth_shortcode_skin   = (string) dpc_get_option( 'auth_shortcode_skin', 'brand' );
-		$auth_comments_style   = (string) dpc_get_option( 'auth_comments_style', 'inline' );
-		$auth_comments_skin    = (string) dpc_get_option( 'auth_comments_skin', 'brand' );
-		$allowed_roles         = $this->get_allowed_roles();
+		$base_callback                = home_url( '/wp-json/dpc/v1/auth/' );
+		$auth_show_in_comments        = (int) dpc_get_option( 'auth_show_in_comments', 1 );
+		$auth_select_account          = (int) dpc_get_option( 'auth_select_account', 1 );
+		$auth_auto_link_email         = (int) dpc_get_option( 'auth_auto_link_email', 1 );
+		$auth_disable_admin           = (int) dpc_get_option( 'auth_disable_admin', 1 );
+		$auth_default_role            = (string) dpc_get_option( 'auth_default_role', 'subscriber' );
+		$auth_shortcode_style_desktop = (string) dpc_get_option( 'auth_shortcode_style_desktop', 'inline' );
+		$auth_shortcode_style_mobile  = (string) dpc_get_option( 'auth_shortcode_style_mobile', 'icon' );
+		$auth_shortcode_skin          = (string) dpc_get_option( 'auth_shortcode_skin', 'brand' );
+		$auth_comments_style_desktop  = (string) dpc_get_option( 'auth_comments_style_desktop', 'inline' );
+		$auth_comments_style_mobile   = (string) dpc_get_option( 'auth_comments_style_mobile', 'column' );
+		$auth_comments_skin           = (string) dpc_get_option( 'auth_comments_skin', 'brand' );
+		$auth_size_desktop            = (int) dpc_get_option( 'auth_size_desktop', 44 );
+		$auth_size_mobile             = (int) dpc_get_option( 'auth_size_mobile', 40 );
+		$allowed_roles                = $this->get_allowed_roles();
 		?>
 		<div class="dpc-card dpc-info-card">
 			<h3><?php echo esc_html__( 'Callback / Redirect URL для OAuth провайдеров', 'divi-pro-engagement' ); ?></h3>
@@ -383,19 +399,28 @@ final class Settings {
 
 		<!-- Design & Multilingual UI -->
 		<div class="dpc-card">
-			<h2><?php echo esc_html__( 'Дизайн и отображение (Мультиязычный UI)', 'divi-pro-engagement' ); ?></h2>
-			<p class="dpc-card-subtitle"><?php echo esc_html__( 'Кнопки не содержат языковых фраз и идеально подходят для мультиязычных сайтов. Настройте вид отдельно для шорткода и формы комментариев.', 'divi-pro-engagement' ); ?></p>
+			<h2><?php echo esc_html__( 'Дизайн и адаптив (Мультиязычный UI)', 'divi-pro-engagement' ); ?></h2>
+			<p class="dpc-card-subtitle"><?php echo esc_html__( 'Кнопки не содержат языковых фраз. Настройте макет для ПК и Мобильного (< 768px), цветовые темы и размеры иконок/аватарки.', 'divi-pro-engagement' ); ?></p>
 
 			<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
 				<div style="background:#f8fafc; padding:16px; border:1px solid #e2e8f0; border-radius:8px;">
 					<h3 style="margin-top:0; font-size:15px;"><?php echo esc_html__( '1. Шорткод [dpc_social_login]', 'divi-pro-engagement' ); ?></h3>
 					<div class="dpc-input-row">
-						<label for="auth_shortcode_style"><?php echo esc_html__( 'Макет кнопок (Style)', 'divi-pro-engagement' ); ?></label>
-						<select id="auth_shortcode_style" name="dpc_settings[auth_shortcode_style]" class="regular-text">
-							<option value="icon" <?php selected( 'icon', $auth_shortcode_style ); ?>><?php echo esc_html__( 'Только иконки в ряд (Icon Only)', 'divi-pro-engagement' ); ?></option>
-							<option value="inline" <?php selected( 'inline', $auth_shortcode_style ); ?>><?php echo esc_html__( 'Кнопки с текстом в ряд (Inline)', 'divi-pro-engagement' ); ?></option>
-							<option value="column" <?php selected( 'column', $auth_shortcode_style ); ?>><?php echo esc_html__( 'Кнопки столбиком (Column)', 'divi-pro-engagement' ); ?></option>
-							<option value="fullwidth" <?php selected( 'fullwidth', $auth_shortcode_style ); ?>><?php echo esc_html__( 'Столбиком на всю ширину (Fullwidth)', 'divi-pro-engagement' ); ?></option>
+						<label for="auth_shortcode_style_desktop"><?php echo esc_html__( 'Макет на ПК (Desktop Style)', 'divi-pro-engagement' ); ?></label>
+						<select id="auth_shortcode_style_desktop" name="dpc_settings[auth_shortcode_style_desktop]" class="regular-text">
+							<option value="icon" <?php selected( 'icon', $auth_shortcode_style_desktop ); ?>><?php echo esc_html__( 'Только иконки в ряд (Icon Only)', 'divi-pro-engagement' ); ?></option>
+							<option value="inline" <?php selected( 'inline', $auth_shortcode_style_desktop ); ?>><?php echo esc_html__( 'Кнопки с текстом в ряд (Inline)', 'divi-pro-engagement' ); ?></option>
+							<option value="column" <?php selected( 'column', $auth_shortcode_style_desktop ); ?>><?php echo esc_html__( 'Кнопки столбиком (Column)', 'divi-pro-engagement' ); ?></option>
+							<option value="fullwidth" <?php selected( 'fullwidth', $auth_shortcode_style_desktop ); ?>><?php echo esc_html__( 'Столбиком на всю ширину (Fullwidth)', 'divi-pro-engagement' ); ?></option>
+						</select>
+					</div>
+					<div class="dpc-input-row">
+						<label for="auth_shortcode_style_mobile"><?php echo esc_html__( 'Макет на Мобильном (< 768px)', 'divi-pro-engagement' ); ?></label>
+						<select id="auth_shortcode_style_mobile" name="dpc_settings[auth_shortcode_style_mobile]" class="regular-text">
+							<option value="icon" <?php selected( 'icon', $auth_shortcode_style_mobile ); ?>><?php echo esc_html__( 'Только иконки в ряд (Icon Only)', 'divi-pro-engagement' ); ?></option>
+							<option value="inline" <?php selected( 'inline', $auth_shortcode_style_mobile ); ?>><?php echo esc_html__( 'Кнопки с текстом в ряд (Inline)', 'divi-pro-engagement' ); ?></option>
+							<option value="column" <?php selected( 'column', $auth_shortcode_style_mobile ); ?>><?php echo esc_html__( 'Кнопки столбиком (Column)', 'divi-pro-engagement' ); ?></option>
+							<option value="fullwidth" <?php selected( 'fullwidth', $auth_shortcode_style_mobile ); ?>><?php echo esc_html__( 'Столбиком на всю ширину (Fullwidth)', 'divi-pro-engagement' ); ?></option>
 						</select>
 					</div>
 					<div class="dpc-input-row">
@@ -411,12 +436,21 @@ final class Settings {
 				<div style="background:#f8fafc; padding:16px; border:1px solid #e2e8f0; border-radius:8px;">
 					<h3 style="margin-top:0; font-size:15px;"><?php echo esc_html__( '2. Форма комментариев Divi', 'divi-pro-engagement' ); ?></h3>
 					<div class="dpc-input-row">
-						<label for="auth_comments_style"><?php echo esc_html__( 'Макет кнопок (Style)', 'divi-pro-engagement' ); ?></label>
-						<select id="auth_comments_style" name="dpc_settings[auth_comments_style]" class="regular-text">
-							<option value="icon" <?php selected( 'icon', $auth_comments_style ); ?>><?php echo esc_html__( 'Только иконки в ряд (Icon Only)', 'divi-pro-engagement' ); ?></option>
-							<option value="inline" <?php selected( 'inline', $auth_comments_style ); ?>><?php echo esc_html__( 'Кнопки с текстом в ряд (Inline)', 'divi-pro-engagement' ); ?></option>
-							<option value="column" <?php selected( 'column', $auth_comments_style ); ?>><?php echo esc_html__( 'Кнопки столбиком (Column)', 'divi-pro-engagement' ); ?></option>
-							<option value="fullwidth" <?php selected( 'fullwidth', $auth_comments_style ); ?>><?php echo esc_html__( 'Столбиком на всю ширину (Fullwidth)', 'divi-pro-engagement' ); ?></option>
+						<label for="auth_comments_style_desktop"><?php echo esc_html__( 'Макет на ПК (Desktop Style)', 'divi-pro-engagement' ); ?></label>
+						<select id="auth_comments_style_desktop" name="dpc_settings[auth_comments_style_desktop]" class="regular-text">
+							<option value="icon" <?php selected( 'icon', $auth_comments_style_desktop ); ?>><?php echo esc_html__( 'Только иконки в ряд (Icon Only)', 'divi-pro-engagement' ); ?></option>
+							<option value="inline" <?php selected( 'inline', $auth_comments_style_desktop ); ?>><?php echo esc_html__( 'Кнопки с текстом в ряд (Inline)', 'divi-pro-engagement' ); ?></option>
+							<option value="column" <?php selected( 'column', $auth_comments_style_desktop ); ?>><?php echo esc_html__( 'Кнопки столбиком (Column)', 'divi-pro-engagement' ); ?></option>
+							<option value="fullwidth" <?php selected( 'fullwidth', $auth_comments_style_desktop ); ?>><?php echo esc_html__( 'Столбиком на всю ширину (Fullwidth)', 'divi-pro-engagement' ); ?></option>
+						</select>
+					</div>
+					<div class="dpc-input-row">
+						<label for="auth_comments_style_mobile"><?php echo esc_html__( 'Макет на Мобильном (< 768px)', 'divi-pro-engagement' ); ?></label>
+						<select id="auth_comments_style_mobile" name="dpc_settings[auth_comments_style_mobile]" class="regular-text">
+							<option value="icon" <?php selected( 'icon', $auth_comments_style_mobile ); ?>><?php echo esc_html__( 'Только иконки в ряд (Icon Only)', 'divi-pro-engagement' ); ?></option>
+							<option value="inline" <?php selected( 'inline', $auth_comments_style_mobile ); ?>><?php echo esc_html__( 'Кнопки с текстом в ряд (Inline)', 'divi-pro-engagement' ); ?></option>
+							<option value="column" <?php selected( 'column', $auth_comments_style_mobile ); ?>><?php echo esc_html__( 'Кнопки столбиком (Column)', 'divi-pro-engagement' ); ?></option>
+							<option value="fullwidth" <?php selected( 'fullwidth', $auth_comments_style_mobile ); ?>><?php echo esc_html__( 'Столбиком на всю ширину (Fullwidth)', 'divi-pro-engagement' ); ?></option>
 						</select>
 					</div>
 					<div class="dpc-input-row">
@@ -427,6 +461,35 @@ final class Settings {
 							<option value="light" <?php selected( 'light', $auth_comments_skin ); ?>><?php echo esc_html__( 'Светлая минималистичная (Light)', 'divi-pro-engagement' ); ?></option>
 						</select>
 					</div>
+				</div>
+			</div>
+
+			<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #f0f0f1;">
+				<div class="dpc-input-row" style="margin-top:0;">
+					<label for="auth_size_desktop"><?php echo esc_html__( 'Размер иконок и аватарки на ПК в px', 'divi-pro-engagement' ); ?></label>
+					<input
+						type="number"
+						id="auth_size_desktop"
+						name="dpc_settings[auth_size_desktop]"
+						min="24"
+						max="100"
+						value="<?php echo esc_attr( (string) $auth_size_desktop ); ?>"
+						class="regular-text"
+						style="max-width: 140px;"
+					/>
+				</div>
+				<div class="dpc-input-row" style="margin-top:0;">
+					<label for="auth_size_mobile"><?php echo esc_html__( 'Размер иконок и аватарки на Мобильном в px', 'divi-pro-engagement' ); ?></label>
+					<input
+						type="number"
+						id="auth_size_mobile"
+						name="dpc_settings[auth_size_mobile]"
+						min="24"
+						max="100"
+						value="<?php echo esc_attr( (string) $auth_size_mobile ); ?>"
+						class="regular-text"
+						style="max-width: 140px;"
+					/>
 				</div>
 			</div>
 		</div>

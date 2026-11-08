@@ -340,50 +340,81 @@ final class AuthManager {
 	}
 
 	/**
-	 * Render multilingual social login buttons or logged-in User Pill.
+	 * Render multilingual social login buttons or logged-in User Avatar Dropdown.
 	 *
 	 * @param string               $context 'shortcode' or 'comments'.
 	 * @param array<string, mixed> $atts    Optional style/skin overrides.
 	 * @return string
 	 */
 	public function render_auth_box( string $context = 'shortcode', array $atts = [] ): string {
-		$current_url = $this->get_current_page_url();
-
-		if ( is_user_logged_in() ) {
-			$current_user = wp_get_current_user();
-			$avatar_url   = get_avatar_url( $current_user->ID, [ 'size' => 64 ] );
-			$logout_url   = wp_logout_url( $current_url );
-
-			ob_start();
-			?>
-			<div class="dpc-user-logged">
-				<img class="dpc-user-logged__avatar" src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $current_user->display_name ); ?>" width="32" height="32" loading="lazy" />
-				<span class="dpc-user-logged__name"><?php echo esc_html( $current_user->display_name ); ?></span>
-				<a class="dpc-user-logged__logout" href="<?php echo esc_url( $logout_url ); ?>" title="Logout" aria-label="Logout">
-					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
-						<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-						<polyline points="16 17 21 12 16 7"/>
-						<line x1="21" y1="12" x2="9" y2="12"/>
-					</svg>
-				</a>
-			</div>
-			<?php
-			return (string) ob_get_clean();
-		}
-
-		$style = 'comments' === $context
-			? (string) dpc_get_option( 'auth_comments_style', 'inline' )
-			: ( ! empty( $atts['style'] ) ? (string) $atts['style'] : (string) dpc_get_option( 'auth_shortcode_style', 'inline' ) );
+		$current_url  = $this->get_current_page_url();
+		$size_desktop = max( 24, min( 100, (int) dpc_get_option( 'auth_size_desktop', 44 ) ) );
+		$size_mobile  = max( 24, min( 100, (int) dpc_get_option( 'auth_size_mobile', 40 ) ) );
+		$size_vars    = sprintf( '--dpc-size-desktop: %dpx; --dpc-size-mobile: %dpx;', $size_desktop, $size_mobile );
 
 		$skin = 'comments' === $context
 			? (string) dpc_get_option( 'auth_comments_skin', 'brand' )
 			: ( ! empty( $atts['skin'] ) ? (string) $atts['skin'] : (string) dpc_get_option( 'auth_shortcode_skin', 'brand' ) );
 
-		if ( ! in_array( $style, [ 'icon', 'inline', 'column', 'fullwidth' ], true ) ) {
-			$style = 'inline';
-		}
 		if ( ! in_array( $skin, [ 'brand', 'dark', 'light' ], true ) ) {
 			$skin = 'brand';
+		}
+
+		if ( is_user_logged_in() ) {
+			$current_user = wp_get_current_user();
+			$avatar_url   = get_avatar_url( $current_user->ID, [ 'size' => 96 ] );
+			$logout_url   = wp_logout_url( $current_url );
+
+			ob_start();
+			?>
+			<div class="dpc-user-logged skin-<?php echo esc_attr( $skin ); ?>" style="<?php echo esc_attr( $size_vars ); ?>">
+				<button type="button" class="dpc-user-avatar-trigger" aria-expanded="false" aria-label="<?php echo esc_attr( $current_user->display_name ); ?>">
+					<img class="dpc-user-logged__avatar" src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $current_user->display_name ); ?>" width="<?php echo esc_attr( (string) $size_desktop ); ?>" height="<?php echo esc_attr( (string) $size_desktop ); ?>" loading="lazy" />
+				</button>
+				<div class="dpc-user-dropdown" role="menu">
+					<div class="dpc-user-dropdown__profile">
+						<img class="dpc-user-dropdown__avatar" src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $current_user->display_name ); ?>" width="48" height="48" loading="lazy" />
+						<div class="dpc-user-dropdown__info">
+							<span class="dpc-user-dropdown__name"><?php echo esc_html( $current_user->display_name ); ?></span>
+							<span class="dpc-user-dropdown__handle">@<?php echo esc_html( $current_user->user_login ); ?></span>
+						</div>
+					</div>
+					<a class="dpc-logout-btn dpc-user-logged__logout" href="<?php echo esc_url( $logout_url ); ?>" title="Logout" aria-label="Logout">
+						<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+							<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+							<polyline points="16 17 21 12 16 7"/>
+							<line x1="21" y1="12" x2="9" y2="12"/>
+						</svg>
+					</a>
+				</div>
+			</div>
+			<?php
+			return (string) ob_get_clean();
+		}
+
+		if ( 'comments' === $context ) {
+			$style_desktop = (string) dpc_get_option( 'auth_comments_style_desktop', (string) dpc_get_option( 'auth_comments_style', 'inline' ) );
+			$style_mobile  = (string) dpc_get_option( 'auth_comments_style_mobile', 'column' );
+		} else {
+			$style_desktop = ! empty( $atts['style_desktop'] )
+				? (string) $atts['style_desktop']
+				: ( ! empty( $atts['style'] )
+					? (string) $atts['style']
+					: (string) dpc_get_option( 'auth_shortcode_style_desktop', (string) dpc_get_option( 'auth_shortcode_style', 'inline' ) ) );
+
+			$style_mobile = ! empty( $atts['style_mobile'] )
+				? (string) $atts['style_mobile']
+				: ( ! empty( $atts['style'] )
+					? (string) $atts['style']
+					: (string) dpc_get_option( 'auth_shortcode_style_mobile', 'icon' ) );
+		}
+
+		$valid_styles = [ 'icon', 'inline', 'column', 'fullwidth' ];
+		if ( ! in_array( $style_desktop, $valid_styles, true ) ) {
+			$style_desktop = 'inline';
+		}
+		if ( ! in_array( $style_mobile, $valid_styles, true ) ) {
+			$style_mobile = 'icon';
 		}
 
 		$google   = new GoogleProvider();
@@ -406,7 +437,7 @@ final class AuthManager {
 
 		ob_start();
 		?>
-		<div class="dpc-social-login style-<?php echo esc_attr( $style ); ?> skin-<?php echo esc_attr( $skin ); ?>">
+		<div class="dpc-social-login dpc-desktop-style-<?php echo esc_attr( $style_desktop ); ?> dpc-mobile-style-<?php echo esc_attr( $style_mobile ); ?> skin-<?php echo esc_attr( $skin ); ?>" style="<?php echo esc_attr( $size_vars ); ?>">
 			<div class="dpc-social-login__buttons">
 				<?php if ( $google->is_configured() ) : ?>
 					<?php
