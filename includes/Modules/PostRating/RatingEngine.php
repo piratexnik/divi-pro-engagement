@@ -474,12 +474,12 @@ final class RatingEngine {
 	 *
 	 * @return int Number of posts migrated.
 	 */
-	public function import_from_kk_star_ratings(): int {
+	public static function import_from_kk_star_ratings(): int {
 		global $wpdb;
 
-		// Query all post IDs having _kksr_casts > 0
+		// Query all distinct post IDs having _kksr_casts
 		$post_ids = $wpdb->get_col(
-			"SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_kksr_casts' AND CAST(meta_value AS UNSIGNED) > 0"
+			"SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_kksr_casts'"
 		);
 
 		if ( empty( $post_ids ) || ! is_array( $post_ids ) ) {
@@ -489,22 +489,25 @@ final class RatingEngine {
 		$imported_count = 0;
 
 		foreach ( $post_ids as $pid ) {
-			$post_id = (int) $pid;
+			$post_id = absint( $pid );
 			if ( $post_id <= 0 ) {
 				continue;
 			}
 
-			$count = absint( get_post_meta( $post_id, '_kksr_casts', true ) );
-			$sum   = (float) get_post_meta( $post_id, '_kksr_ratings', true );
+			$count_raw = get_post_meta( $post_id, '_kksr_casts', true );
+			$count     = is_scalar( $count_raw ) ? absint( (string) $count_raw ) : 0;
 
 			if ( $count <= 0 ) {
 				continue;
 			}
 
-			$avg_meta = get_post_meta( $post_id, '_kksr_avg', true );
-			if ( '' !== $avg_meta && is_numeric( $avg_meta ) && (float) $avg_meta > 0 ) {
-				$avg = round( (float) $avg_meta, 2 );
-			} elseif ( $sum > 0 ) {
+			$sum_raw = get_post_meta( $post_id, '_kksr_ratings', true );
+			$sum     = ( is_scalar( $sum_raw ) && is_numeric( $sum_raw ) ) ? (float) $sum_raw : 0.0;
+
+			$avg_raw = get_post_meta( $post_id, '_kksr_avg', true );
+			if ( is_scalar( $avg_raw ) && '' !== $avg_raw && is_numeric( $avg_raw ) && (float) $avg_raw > 0 ) {
+				$avg = round( (float) $avg_raw, 2 );
+			} elseif ( $sum > 0.0 ) {
 				$avg = round( $sum / $count, 2 );
 			} else {
 				$avg = 5.0;

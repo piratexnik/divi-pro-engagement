@@ -877,10 +877,10 @@ final class Settings {
 	}
 
 	/**
-	 * Handle kk Star Ratings import action.
+	 * Handle kk Star Ratings import action on admin_init before any HTML output.
 	 */
 	public function handle_kksr_import(): void {
-		if ( ! isset( $_GET['dpc_action'] ) || 'import_kksr' !== $_GET['dpc_action'] ) {
+		if ( ! is_admin() || ! isset( $_GET['dpc_action'] ) || 'import_kksr' !== $_GET['dpc_action'] ) {
 			return;
 		}
 
@@ -890,17 +890,9 @@ final class Settings {
 
 		check_admin_referer( 'dpc_import_kksr_action', 'dpc_import_kksr_nonce' );
 
-		$rating_engine = new RatingEngine();
-		$imported      = $rating_engine->import_from_kk_star_ratings();
+		$imported_count = RatingEngine::import_from_kk_star_ratings();
 
-		$redirect_url = add_query_arg(
-			[
-				'page'         => self::PAGE_SLUG,
-				'tab'          => 'rating',
-				'dpc_imported' => $imported,
-			],
-			admin_url( 'admin.php' )
-		);
+		$redirect_url = admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&tab=rating&kksr_imported=' . $imported_count );
 
 		wp_safe_redirect( $redirect_url );
 		exit;
@@ -910,11 +902,15 @@ final class Settings {
 	 * Render notice after kk Star Ratings import.
 	 */
 	public function render_kksr_import_notice(): void {
-		if ( ! isset( $_GET['dpc_imported'] ) || ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
 
-		$count = absint( $_GET['dpc_imported'] );
+		if ( ! isset( $_GET['kksr_imported'] ) && ! isset( $_GET['dpc_imported'] ) ) {
+			return;
+		}
+
+		$count = isset( $_GET['kksr_imported'] ) ? absint( $_GET['kksr_imported'] ) : absint( $_GET['dpc_imported'] );
 		?>
 		<div class="notice notice-success is-dismissible">
 			<p>
