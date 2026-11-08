@@ -316,6 +316,7 @@ button.dpc-btn:active {
 	position: absolute;
 	top: calc(100% + 10px);
 	left: 0;
+	z-index: 100;
 	min-width: 220px;
 	padding: 12px 14px;
 	display: flex;
@@ -433,7 +434,9 @@ button.dpc-btn:active {
 	align-items: center;
 	flex-wrap: wrap;
 	gap: 12px;
-	margin: 18px 0;
+	margin: 0;
+	margin-top: 0;
+	margin-bottom: 0;
 	padding: 8px 14px;
 	background: #f8fafc;
 	border: 1px solid #e2e8f0;
@@ -581,6 +584,7 @@ button.dpc-btn:active {
 /* ==========================================================================
    4. Comments Module (Modern Tree Hierarchy & Light/Dark Skins)
    ========================================================================== */
+#dpc-comments,
 .dpc-comments-area {
 	--dpc-c-root-bg: #ffffff;
 	--dpc-c-reply-bg: #f8fafc;
@@ -592,7 +596,9 @@ button.dpc-btn:active {
 	--dpc-c-input-bg: #ffffff;
 	--dpc-c-accent: #2563eb;
 	--dpc-c-accent-hover: #1d4ed8;
-	margin: 32px 0;
+	margin-top: 0;
+	margin-bottom: 32px;
+	padding-top: 0;
 	font-family: inherit;
 	font-size: var(--dpc-custom-font-size, inherit);
 	line-height: inherit;
@@ -628,16 +634,11 @@ button.dpc-btn:active {
 	box-sizing: border-box;
 }
 
-.dpc-respond-top-bar {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	flex-wrap: wrap;
-	gap: 10px;
-	margin-bottom: 10px;
+.dpc-form-pos-top .dpc-comment-respond {
+	margin-top: 0;
 }
 
-.dpc-respond-top-bar:empty {
+.dpc-respond-top-bar {
 	display: none;
 }
 
@@ -718,12 +719,60 @@ button.dpc-btn:active {
 	pointer-events: none !important;
 }
 
+.dpc-comment-form__footer,
 .dpc-form-footer {
 	display: flex;
 	align-items: center;
-	justify-content: flex-end;
+	justify-content: space-between;
+	gap: 16px;
+	flex-wrap: wrap;
+	margin-top: 12px;
+}
+
+.dpc-comment-form__footer-left {
+	display: flex;
+	align-items: center;
 	flex-wrap: wrap;
 	gap: 10px;
+	min-width: 0;
+}
+
+.dpc-comment-form__footer-left .dpc-respond-auth,
+.dpc-comment-form__footer-left .dpc-social-login,
+.dpc-comment-form__footer-left .dpc-user-logged {
+	margin: 0;
+}
+
+.dpc-comment-form__footer-right {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-left: auto;
+}
+
+@media (max-width: 639.98px) {
+	.dpc-comment-form__footer,
+	.dpc-form-footer {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 14px;
+	}
+
+	.dpc-comment-form__footer-left {
+		width: 100%;
+		justify-content: flex-start;
+	}
+
+	.dpc-comment-form__footer-right {
+		width: 100%;
+		justify-content: space-between;
+		margin-left: 0;
+	}
+
+	.dpc-comment-form__footer-right .dpc-submit-comment-btn {
+		margin-left: auto;
+	}
 }
 
 .dpc-cancel-reply-btn {
@@ -804,18 +853,27 @@ button.dpc-btn:active {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	margin-top: 0;
+	padding-top: 0;
 	padding-bottom: 12px;
 	margin-bottom: 18px;
 	border-bottom: 1px solid var(--dpc-c-border);
 }
 
-.dpc-comments-header__count {
+.dpc-comments-header__count,
+.dpc-comments-count {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
 	font-size: 16px;
 	font-weight: 700;
 	color: var(--dpc-c-text);
+}
+
+.dpc-comments-count__num {
+	display: inline-flex;
+	align-items: center;
+	font-weight: 700;
 }
 
 .dpc-comments-sort {

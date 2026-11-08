@@ -50,15 +50,9 @@ if ( $dpc_comments_open ) :
 	?>
 	<div class="dpc-comments-form-slot">
 		<div id="dpc-respond" class="dpc-comment-respond">
-			<div class="dpc-respond-top-bar">
-				<?php if ( (bool) dpc_get_option( 'enable_social_auth', false ) && (bool) dpc_get_option( 'auth_show_in_comments', true ) ) : ?>
-					<div class="dpc-respond-auth">
-						<?php
-						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped inside render_auth_box().
-						echo AuthManager::get_instance()->render_auth_box( 'comments' );
-						?>
-					</div>
-				<?php endif; ?>
+			<form id="dpc-comment-form" class="dpc-comment-form" method="post" novalidate>
+				<input type="hidden" name="post_id" value="<?php echo esc_attr( (string) $dpc_post_id ); ?>" />
+				<input type="hidden" name="comment_parent" id="dpc-comment-parent" value="0" />
 
 				<div class="dpc-reply-indicator" style="display:none;">
 					<span class="dpc-reply-indicator__badge">
@@ -66,11 +60,6 @@ if ( $dpc_comments_open ) :
 						<span class="dpc-reply-indicator__name"></span>
 					</span>
 				</div>
-			</div>
-
-			<form id="dpc-comment-form" class="dpc-comment-form" method="post" novalidate>
-				<input type="hidden" name="post_id" value="<?php echo esc_attr( (string) $dpc_post_id ); ?>" />
-				<input type="hidden" name="comment_parent" id="dpc-comment-parent" value="0" />
 
 				<?php if ( ! is_user_logged_in() ) : ?>
 					<div class="dpc-form-row dpc-form-row--author">
@@ -106,24 +95,37 @@ if ( $dpc_comments_open ) :
 					</div>
 				<?php endif; ?>
 
-				<div class="dpc-form-footer">
-					<?php if ( ! is_user_logged_in() && $dpc_turnstile_on && '' !== $dpc_turnstile_key && '' !== $dpc_turnstile_sec ) : ?>
-						<div class="dpc-turnstile-wrap">
-							<div class="cf-turnstile" data-sitekey="<?php echo esc_attr( $dpc_turnstile_key ); ?>" data-theme="<?php echo esc_attr( $dpc_skin ); ?>"></div>
-						</div>
-					<?php endif; ?>
+				<div class="dpc-comment-form__footer dpc-form-footer">
+					<div class="dpc-comment-form__footer-left">
+						<?php if ( (bool) dpc_get_option( 'enable_social_auth', false ) && (bool) dpc_get_option( 'auth_show_in_comments', true ) ) : ?>
+							<div class="dpc-respond-auth">
+								<?php
+								// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped inside render_auth_box().
+								echo AuthManager::get_instance()->render_auth_box( 'comments' );
+								?>
+							</div>
+						<?php endif; ?>
+					</div>
 
-					<button type="button" class="dpc-cancel-reply-btn" style="display:none;">
-						<span data-i18n="cancel_reply"><?php echo esc_html( $dpc_strings['cancel_reply'] ); ?></span>
-					</button>
+					<div class="dpc-comment-form__footer-right">
+						<?php if ( ! is_user_logged_in() && $dpc_turnstile_on && '' !== $dpc_turnstile_key && '' !== $dpc_turnstile_sec ) : ?>
+							<div class="dpc-turnstile-wrap">
+								<div class="cf-turnstile" data-sitekey="<?php echo esc_attr( $dpc_turnstile_key ); ?>" data-theme="<?php echo esc_attr( $dpc_skin ); ?>"></div>
+							</div>
+						<?php endif; ?>
 
-					<button type="submit" class="dpc-submit-comment-btn">
-						<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-							<line x1="22" y1="2" x2="11" y2="13"/>
-							<polygon points="22 2 15 22 11 13 2 9 22 2"/>
-						</svg>
-						<span data-i18n="submit"><?php echo esc_html( $dpc_strings['submit'] ); ?></span>
-					</button>
+						<button type="button" class="dpc-cancel-reply-btn" style="display:none;">
+							<span data-i18n="cancel_reply"><?php echo esc_html( $dpc_strings['cancel_reply'] ); ?></span>
+						</button>
+
+						<button type="submit" class="dpc-submit-comment-btn">
+							<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+								<line x1="22" y1="2" x2="11" y2="13"/>
+								<polygon points="22 2 15 22 11 13 2 9 22 2"/>
+							</svg>
+							<span data-i18n="submit"><?php echo esc_html( $dpc_strings['submit'] ); ?></span>
+						</button>
+					</div>
 				</div>
 
 				<div class="dpc-form-notice" role="status" aria-live="polite" style="display:none;"></div>
@@ -145,11 +147,12 @@ $dpc_form_html = (string) ob_get_clean();
 	?>
 
 	<div class="dpc-comments-header">
-		<div class="dpc-comments-header__count">
+		<div class="dpc-comments-header__count dpc-comments-count">
 			<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 				<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
 			</svg>
-			<span class="dpc-comments-total"><?php echo esc_html( (string) $dpc_total_count ); ?></span>
+			<span data-i18n="comments_title"><?php echo esc_html( $dpc_strings['comments_title'] ); ?></span>
+			<span class="dpc-comments-count__num">(<span class="dpc-comments-total"><?php echo esc_html( (string) $dpc_total_count ); ?></span>)</span>
 		</div>
 
 		<div class="dpc-comments-sort" role="tablist">

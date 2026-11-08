@@ -12,6 +12,7 @@ jQuery(document).ready(function($) {
 	// =========================================================================
 	var defaultI18nDict = {
 		uk: {
+			comments_title: 'Коментарі',
 			name: "Ім'я *",
 			placeholder: 'Напишіть коментар...',
 			submit: 'Надіслати',
@@ -25,6 +26,7 @@ jQuery(document).ready(function($) {
 			moderation: '✓ Дякуємо! Коментар надіслано на модерацію.'
 		},
 		ru: {
+			comments_title: 'Комментарии',
 			name: 'Имя *',
 			placeholder: 'Напишите комментарий...',
 			submit: 'Отправить',
@@ -38,6 +40,7 @@ jQuery(document).ready(function($) {
 			moderation: '✓ Спасибо! Комментарий отправлен на модерацию.'
 		},
 		en: {
+			comments_title: 'Comments',
 			name: 'Name *',
 			placeholder: 'Write a comment...',
 			submit: 'Send',

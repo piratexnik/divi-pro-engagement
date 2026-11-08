@@ -113,6 +113,7 @@ final class CommentsEngine {
 		return [
 			'uk' => [
 				'lang'            => 'uk',
+				'comments_title'  => 'Коментарі',
 				'name'            => "Ім'я *",
 				'placeholder'     => 'Напишіть коментар...',
 				'submit'          => 'Надіслати',
@@ -133,6 +134,7 @@ final class CommentsEngine {
 			],
 			'ru' => [
 				'lang'            => 'ru',
+				'comments_title'  => 'Комментарии',
 				'name'            => 'Имя *',
 				'placeholder'     => 'Напишите комментарий...',
 				'submit'          => 'Отправить',
@@ -153,6 +155,7 @@ final class CommentsEngine {
 			],
 			'en' => [
 				'lang'            => 'en',
+				'comments_title'  => 'Comments',
 				'name'            => 'Name *',
 				'placeholder'     => 'Write a comment...',
 				'submit'          => 'Send',
