@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace DiviProEngagement\Modules\Comments;
 
+use DiviProEngagement\Modules\Auth\AuthManager;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -21,6 +23,9 @@ final class CommentsEngine {
 
 	private function __construct() {
 		add_filter( 'comments_template', [ $this, 'override_comments_template' ], 999 );
+		add_filter( 'get_avatar_url', [ AuthManager::get_instance(), 'filter_avatar_url' ], 10, 3 );
+		add_filter( 'pre_get_avatar_data', [ AuthManager::get_instance(), 'filter_avatar_data' ], 10, 2 );
+		add_filter( 'kses_allowed_protocols', [ AuthManager::get_instance(), 'allow_data_protocol' ] );
 
 		add_action( 'wp_ajax_dpc_submit_comment', [ $this, 'handle_ajax_submit_comment' ] );
 		add_action( 'wp_ajax_nopriv_dpc_submit_comment', [ $this, 'handle_ajax_submit_comment' ] );
@@ -314,6 +319,10 @@ final class CommentsEngine {
 
 		$sorted_comments = array_merge( $top_level, $children );
 
+		$force_depth = static fn() => 5;
+		add_filter( 'option_thread_comments', '__return_true' );
+		add_filter( 'option_thread_comments_depth', $force_depth );
+
 		ob_start();
 		wp_list_comments(
 			[
@@ -326,7 +335,32 @@ final class CommentsEngine {
 			],
 			$sorted_comments
 		);
-		return (string) ob_get_clean();
+		$html_out = (string) ob_get_clean();
+
+		remove_filter( 'option_thread_comments', '__return_true' );
+		remove_filter( 'option_thread_comments_depth', $force_depth );
+
+		return $html_out;
+	}
+
+	/**
+	 * Calculate 1-indexed nesting depth of a comment (clamped between 1 and 5).
+	 *
+	 * @param \WP_Comment $comment Comment object.
+	 * @return int
+	 */
+	private function calculate_comment_depth( \WP_Comment $comment ): int {
+		$depth   = 1;
+		$curr_id = (int) $comment->comment_parent;
+		while ( $curr_id > 0 && $depth < 5 ) {
+			++$depth;
+			$parent_obj = get_comment( $curr_id );
+			if ( ! ( $parent_obj instanceof \WP_Comment ) ) {
+				break;
+			}
+			$curr_id = (int) $parent_obj->comment_parent;
+		}
+		return $depth;
 	}
 
 	/**
@@ -345,6 +379,11 @@ final class CommentsEngine {
 		$parent_id   = (int) $comment->comment_parent;
 		$author_name = $this->get_safe_author_name( $comment, $lang_override );
 		$avatar_url  = get_avatar_url( $comment, [ 'size' => 88 ] );
+
+		if ( $depth <= 1 && $parent_id > 0 ) {
+			$depth = $this->calculate_comment_depth( $comment );
+		}
+		$depth = max( 1, min( 5, $depth ) );
 
 		$is_verified_author = false;
 		if ( $user_id > 0 ) {
@@ -369,11 +408,13 @@ final class CommentsEngine {
 		$user_vote   = $this->get_visitor_comment_vote( $comment_id );
 		$vote_access = (string) dpc_get_option( 'comments_vote_access', 'all' );
 		$is_locked   = ( 'logged_in' === $vote_access && ! is_user_logged_in() );
+		$safe_avatar = str_starts_with( $avatar_url, 'data:image/svg+xml' ) ? $avatar_url : esc_url( $avatar_url );
+		$depth_class = 'dpc-comment-item depth-' . $depth . ' dpc-depth-' . $depth;
 		?>
-		<li id="comment-<?php echo esc_attr( (string) $comment_id ); ?>" <?php comment_class( 'dpc-comment-item', $comment ); ?> data-comment-id="<?php echo esc_attr( (string) $comment_id ); ?>">
+		<li id="comment-<?php echo esc_attr( (string) $comment_id ); ?>" <?php comment_class( $depth_class, $comment ); ?> data-comment-id="<?php echo esc_attr( (string) $comment_id ); ?>" data-depth="<?php echo esc_attr( (string) $depth ); ?>">
 			<article class="dpc-comment-card">
 				<div class="dpc-comment-card__avatar">
-					<img src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $author_name ); ?>" width="44" height="44" loading="lazy" />
+					<img src="<?php echo esc_attr( $safe_avatar ); ?>" alt="<?php echo esc_attr( $author_name ); ?>" width="44" height="44" loading="lazy" />
 				</div>
 
 				<div class="dpc-comment-card__body">
@@ -526,8 +567,9 @@ final class CommentsEngine {
 			$html        = '';
 
 			if ( $comment_obj instanceof \WP_Comment ) {
+				$calc_depth = $this->calculate_comment_depth( $comment_obj );
 				ob_start();
-				$this->render_comment_item( $comment_obj, [], 1, $lang );
+				$this->render_comment_item( $comment_obj, [], $calc_depth, $lang );
 				echo '</li>';
 				$html = (string) ob_get_clean();
 			}

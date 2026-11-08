@@ -853,12 +853,13 @@ button.dpc-btn:active {
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-/* Comment Tree & Curved Branch Connectors (Discord / Reddit Style) */
+/* Comment Tree & Curved Branch Connectors (3-Step Depth System) */
 .dpc-comment-list,
 .dpc-comment-list ul.children {
 	list-style: none !important;
-	margin: 0;
-	padding: 0;
+	margin: 0 !important;
+	padding: 0 !important;
+	border: none !important;
 }
 
 .dpc-comment-item {
@@ -868,6 +869,7 @@ button.dpc-btn:active {
 
 /* Root comment card */
 .dpc-comment-card {
+	position: relative;
 	display: flex;
 	align-items: flex-start;
 	gap: 12px;
@@ -879,72 +881,19 @@ button.dpc-btn:active {
 	transition: border-color 0.25s ease;
 }
 
-/* All child containers: reset borders completely to prevent picket fence */
+/* Child containers: reset margins/paddings so indentation is controlled strictly by depth */
 .dpc-comment-list ul.children,
 .dpc-comment-children {
 	position: relative;
-	margin-top: 10px;
-	border-left: none !important;
-}
-
-/* Level 1 replies only: single clean indentation under root comment */
-.dpc-comment-list > li.dpc-comment-item > ul.children {
-	margin-left: 22px;
-	padding-left: 22px;
-}
-
-/* Deeper nesting (level 2+): zero additional indentation to keep clean column and avoid squeezing */
-.dpc-comment-list ul.children ul.children {
+	margin-top: 10px !important;
 	margin-left: 0 !important;
 	padding-left: 0 !important;
 	border-left: none !important;
 }
 
-/* Vertical guide line on level 1 replies: stretches to next sibling */
-.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item::after {
-	content: "";
-	position: absolute;
-	left: -24px;
-	top: 0;
-	bottom: -10px;
-	width: 2px;
-	background-color: var(--dpc-c-tree-line);
-	pointer-events: none;
-}
-
-/* Curved connector arc from vertical branch line to reply avatar */
-.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item::before {
-	content: "";
-	position: absolute;
-	left: -24px;
-	top: 0;
-	width: 18px;
-	height: 24px;
-	border-left: 2px solid var(--dpc-c-tree-line);
-	border-bottom: 2px solid var(--dpc-c-tree-line);
-	border-bottom-left-radius: 10px;
-	pointer-events: none;
-}
-
-/* First reply: curve starts from root card boundary */
-.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item:first-child::before {
-	top: -10px;
-	height: 34px;
-}
-
-/* Last reply: vertical line stops at the arc elbow, never hangs below */
-.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item:last-child::after {
-	display: none !important;
-}
-
-/* Deeper nesting: hide redundant connector lines */
-.dpc-comment-list ul.children ul.children > li.dpc-comment-item::before,
-.dpc-comment-list ul.children ul.children > li.dpc-comment-item::after {
-	display: none !important;
-}
-
-/* Compact reply card with subtle background distinction */
-.dpc-comment-list ul.children .dpc-comment-card {
+/* Compact reply card for all nested levels (depth >= 2) */
+.dpc-comment-list ul.children .dpc-comment-card,
+.dpc-comment-item:not(.depth-1) > .dpc-comment-card {
 	padding: 11px 14px;
 	background: var(--dpc-c-reply-bg);
 	border-radius: 10px;
@@ -955,23 +904,77 @@ button.dpc-btn:active {
 	margin-bottom: 10px;
 }
 
+/* Step 1: Root comments (depth-1) - 0 indent, no connector */
+.dpc-comment-item.depth-1 > .dpc-comment-card,
+.dpc-comment-item[data-depth="1"] > .dpc-comment-card {
+	margin-left: 0;
+}
+
+/* Step 2: 1st reply level (depth-2) - 28px right indent */
+.dpc-comment-item.depth-2 > .dpc-comment-card,
+.dpc-comment-item[data-depth="2"] > .dpc-comment-card {
+	margin-left: 28px;
+}
+
+/* Step 3: 2nd+ reply levels (depth-3, depth-4, depth-5) - 56px right indent (aligned column) */
+.dpc-comment-item.depth-3 > .dpc-comment-card,
+.dpc-comment-item.depth-4 > .dpc-comment-card,
+.dpc-comment-item.depth-5 > .dpc-comment-card,
+.dpc-comment-item[data-depth="3"] > .dpc-comment-card,
+.dpc-comment-item[data-depth="4"] > .dpc-comment-card,
+.dpc-comment-item[data-depth="5"] > .dpc-comment-card {
+	margin-left: 56px;
+}
+
+/* Curved connector arc ╰─ on EVERY reply card (depth >= 2) */
+.dpc-comment-item.depth-2 > .dpc-comment-card::before,
+.dpc-comment-item.depth-3 > .dpc-comment-card::before,
+.dpc-comment-item.depth-4 > .dpc-comment-card::before,
+.dpc-comment-item.depth-5 > .dpc-comment-card::before,
+.dpc-comment-item[data-depth="2"] > .dpc-comment-card::before,
+.dpc-comment-item[data-depth="3"] > .dpc-comment-card::before,
+.dpc-comment-item[data-depth="4"] > .dpc-comment-card::before,
+.dpc-comment-item[data-depth="5"] > .dpc-comment-card::before {
+	content: "";
+	position: absolute;
+	left: -18px;
+	top: -10px;
+	width: 14px;
+	height: 32px;
+	border-left: 2px solid var(--dpc-c-tree-line);
+	border-bottom: 2px solid var(--dpc-c-tree-line);
+	border-bottom-left-radius: 9px;
+	pointer-events: none;
+}
+
 @media (max-width: 767.98px) {
-	.dpc-comment-list > li.dpc-comment-item > ul.children {
-		margin-left: 10px;
-		padding-left: 14px;
+	.dpc-comment-item.depth-2 > .dpc-comment-card,
+	.dpc-comment-item[data-depth="2"] > .dpc-comment-card {
+		margin-left: 16px;
 	}
-	.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item::after {
-		left: -16px;
+
+	.dpc-comment-item.depth-3 > .dpc-comment-card,
+	.dpc-comment-item.depth-4 > .dpc-comment-card,
+	.dpc-comment-item.depth-5 > .dpc-comment-card,
+	.dpc-comment-item[data-depth="3"] > .dpc-comment-card,
+	.dpc-comment-item[data-depth="4"] > .dpc-comment-card,
+	.dpc-comment-item[data-depth="5"] > .dpc-comment-card {
+		margin-left: 32px;
 	}
-	.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item::before {
-		left: -16px;
-		width: 12px;
-		height: 20px;
-		border-bottom-left-radius: 8px;
-	}
-	.dpc-comment-list > li.dpc-comment-item > ul.children > li.dpc-comment-item:first-child::before {
+
+	.dpc-comment-item.depth-2 > .dpc-comment-card::before,
+	.dpc-comment-item.depth-3 > .dpc-comment-card::before,
+	.dpc-comment-item.depth-4 > .dpc-comment-card::before,
+	.dpc-comment-item.depth-5 > .dpc-comment-card::before,
+	.dpc-comment-item[data-depth="2"] > .dpc-comment-card::before,
+	.dpc-comment-item[data-depth="3"] > .dpc-comment-card::before,
+	.dpc-comment-item[data-depth="4"] > .dpc-comment-card::before,
+	.dpc-comment-item[data-depth="5"] > .dpc-comment-card::before {
+		left: -12px;
 		top: -10px;
-		height: 30px;
+		width: 9px;
+		height: 28px;
+		border-bottom-left-radius: 7px;
 	}
 }
 

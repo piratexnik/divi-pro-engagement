@@ -132,6 +132,7 @@ $dpc_form_html = (string) ob_get_clean();
 ?>
 
 <section id="dpc-comments" class="dpc-comments-area dpc-comments-skin-<?php echo esc_attr( $dpc_skin ); ?> dpc-form-pos-<?php echo esc_attr( $dpc_form_position ); ?>" data-post-id="<?php echo esc_attr( (string) $dpc_post_id ); ?>"<?php echo '' !== $dpc_custom_font_size ? ' style="--dpc-custom-font-size: ' . esc_attr( $dpc_custom_font_size ) . ';"' : ''; ?>>
+	<div id="comments" aria-hidden="true"></div>
 	<?php
 	if ( 'top' === $dpc_form_position ) {
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above.

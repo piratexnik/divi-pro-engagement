@@ -651,4 +651,25 @@ jQuery(document).ready(function($) {
 			$nudge.removeClass('is-visible').attr('aria-hidden', 'true');
 		});
 	}
+
+	// =========================================================================
+	// 6. Smooth Scroll for #comments and #respond Anchor Links
+	// =========================================================================
+	$(document).on('click', 'a[href$="#comments"], a[href$="#respond"]', function(e) {
+		var href = $(this).attr('href') || '';
+		var isRespond = href.slice(-8) === '#respond';
+		var targetEl = isRespond
+			? (document.getElementById('dpc-respond') || document.getElementById('dpc-comments') || document.getElementById('comments'))
+			: (document.querySelector('.dpc-comment-list > li.dpc-comment-item') || document.getElementById('dpc-comments') || document.getElementById('comments'));
+
+		if (targetEl && typeof targetEl.scrollIntoView === 'function') {
+			e.preventDefault();
+			targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			if (isRespond) {
+				setTimeout(function() {
+					$('#dpc-comment-textarea').trigger('focus');
+				}, 450);
+			}
+		}
+	});
 });

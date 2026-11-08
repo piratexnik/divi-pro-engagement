@@ -29,6 +29,34 @@ final class AuthManager {
 	private function __construct() {
 		add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
 		add_filter( 'get_avatar_url', [ $this, 'filter_avatar_url' ], 10, 3 );
+		add_filter( 'pre_get_avatar_data', [ $this, 'filter_avatar_data' ], 10, 2 );
+		add_filter( 'kses_allowed_protocols', [ $this, 'allow_data_protocol' ] );
+	}
+
+	/**
+	 * Allow 'data' protocol in esc_url() for inline SVG letter avatars.
+	 *
+	 * @param array<int, string> $protocols Allowed protocols.
+	 * @return array<int, string>
+	 */
+	public function allow_data_protocol( array $protocols ): array {
+		if ( ! in_array( 'data', $protocols, true ) ) {
+			$protocols[] = 'data';
+		}
+		return $protocols;
+	}
+
+	/**
+	 * Filter pre_get_avatar_data so WordPress get_avatar() uses our local/social/SVG avatar without querying Gravatar.
+	 *
+	 * @param array<string, mixed> $args        Avatar data arguments.
+	 * @param mixed                $id_or_email User ID, WP_User, WP_Post, WP_Comment, or email.
+	 * @return array<string, mixed>
+	 */
+	public function filter_avatar_data( array $args, mixed $id_or_email ): array {
+		$args['url']          = $this->filter_avatar_url( (string) ( $args['url'] ?? '' ), $id_or_email, $args );
+		$args['found_avatar'] = true;
+		return $args;
 	}
 
 	public function register_rest_routes(): void {
@@ -306,7 +334,7 @@ final class AuthManager {
 	}
 
 	/**
-	 * Override default Gravatar with social avatar if stored in user_meta.
+	 * Filter WordPress avatar URL to return stored social avatar, Simple Local Avatars fallback, or SVG letter avatar.
 	 *
 	 * @param string $url         Default avatar URL.
 	 * @param mixed  $id_or_email User ID, WP_User, WP_Post, WP_Comment, or email.
@@ -315,28 +343,108 @@ final class AuthManager {
 	 */
 	public function filter_avatar_url( string $url, mixed $id_or_email, array $args ): string {
 		$user_id = 0;
+		$name    = '';
 
 		if ( is_numeric( $id_or_email ) ) {
 			$user_id = (int) $id_or_email;
 		} elseif ( $id_or_email instanceof \WP_User ) {
 			$user_id = $id_or_email->ID;
-		} elseif ( $id_or_email instanceof \WP_Comment && ! empty( $id_or_email->user_id ) ) {
-			$user_id = (int) $id_or_email->user_id;
+			$name    = (string) $id_or_email->display_name;
+		} elseif ( $id_or_email instanceof \WP_Comment ) {
+			if ( ! empty( $id_or_email->user_id ) ) {
+				$user_id = (int) $id_or_email->user_id;
+			}
+			$name = (string) $id_or_email->comment_author;
+		} elseif ( $id_or_email instanceof \WP_Post ) {
+			$user_id = (int) $id_or_email->post_author;
 		} elseif ( is_string( $id_or_email ) && is_email( $id_or_email ) ) {
 			$user = get_user_by( 'email', $id_or_email );
 			if ( $user instanceof \WP_User ) {
 				$user_id = $user->ID;
+				$name    = (string) $user->display_name;
 			}
 		}
 
 		if ( $user_id > 0 ) {
+			// 1. Check DPC social avatar URL
 			$custom_avatar = get_user_meta( $user_id, '_dpc_avatar_url', true );
-			if ( is_string( $custom_avatar ) && '' !== $custom_avatar ) {
+			if ( is_string( $custom_avatar ) && '' !== trim( $custom_avatar ) ) {
 				return esc_url( $custom_avatar );
+			}
+
+			// 2. Check legacy Simple Local Avatars user_meta ('simple_local_avatar')
+			$local_avatar = get_user_meta( $user_id, 'simple_local_avatar', true );
+			if ( is_array( $local_avatar ) ) {
+				if ( ! empty( $local_avatar['full'] ) && is_string( $local_avatar['full'] ) ) {
+					return esc_url( $local_avatar['full'] );
+				}
+				if ( ! empty( $local_avatar['media_id'] ) && is_numeric( $local_avatar['media_id'] ) ) {
+					$att_url = wp_get_attachment_image_url( (int) $local_avatar['media_id'], 'thumbnail' );
+					if ( is_string( $att_url ) && '' !== $att_url ) {
+						return esc_url( $att_url );
+					}
+				}
+			} elseif ( is_numeric( $local_avatar ) && (int) $local_avatar > 0 ) {
+				$att_url = wp_get_attachment_image_url( (int) $local_avatar, 'thumbnail' );
+				if ( is_string( $att_url ) && '' !== $att_url ) {
+					return esc_url( $att_url );
+				}
+			} elseif ( is_string( $local_avatar ) && '' !== trim( $local_avatar ) && str_starts_with( $local_avatar, 'http' ) ) {
+				return esc_url( $local_avatar );
+			}
+
+			if ( '' === trim( $name ) ) {
+				$u = get_userdata( $user_id );
+				if ( $u instanceof \WP_User ) {
+					$name = (string) $u->display_name;
+				}
 			}
 		}
 
-		return $url;
+		// 3. Fallback: Generate local SVG letter avatar (replaces Gravatar & Leira Letter Avatar)
+		return self::generate_letter_avatar_svg( $name );
+	}
+
+	/**
+	 * Generate a circular SVG Data URI avatar with the first letter of the author's name.
+	 *
+	 * @param string $name Author or user name.
+	 * @return string Data URI string (data:image/svg+xml;utf8,...).
+	 */
+	public static function generate_letter_avatar_svg( string $name ): string {
+		$clean_name = trim( wp_strip_all_tags( $name ) );
+		if ( '' === $clean_name ) {
+			$clean_name = '?';
+		}
+
+		if ( function_exists( 'mb_substr' ) && function_exists( 'mb_strtoupper' ) ) {
+			$letter = mb_strtoupper( mb_substr( $clean_name, 0, 1, 'UTF-8' ), 'UTF-8' );
+		} else {
+			$letter = strtoupper( substr( $clean_name, 0, 1 ) );
+		}
+
+		$palette = [
+			'#2563eb', // Blue
+			'#7c3aed', // Violet
+			'#db2777', // Pink
+			'#059669', // Emerald
+			'#d97706', // Amber
+			'#0891b2', // Cyan
+			'#4f46e5', // Indigo
+			'#e11d48', // Rose
+		];
+
+		$hash_index = abs( (int) crc32( strtolower( $clean_name ) ) ) % 8;
+		$bg_color   = $palette[ $hash_index ];
+		$safe_char  = htmlspecialchars( $letter, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' );
+
+		$svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88" width="88" height="88">'
+			. '<circle cx="44" cy="44" r="44" fill="' . $bg_color . '"/>'
+			. '<text x="50%" y="50%" dy=".35em" text-anchor="middle" fill="#ffffff" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-size="40" font-weight="700">'
+			. $safe_char
+			. '</text></svg>';
+
+		return 'data:image/svg+xml;utf8,' . rawurlencode( $svg );
 	}
 
 	/**
@@ -368,16 +476,17 @@ final class AuthManager {
 			if ( '' === $public_name || ( user_can( $current_user, 'manage_options' ) && 'admin' === strtolower( $public_name ) ) ) {
 				$public_name = 'Author';
 			}
+			$safe_avatar_src = str_starts_with( $avatar_url, 'data:image/svg+xml' ) ? $avatar_url : esc_url( $avatar_url );
 
 			ob_start();
 			?>
 			<div class="dpc-user-logged skin-<?php echo esc_attr( $skin ); ?>" style="<?php echo esc_attr( $size_vars ); ?>">
 				<button type="button" class="dpc-user-avatar-trigger" aria-expanded="false" aria-label="<?php echo esc_attr( $public_name ); ?>">
-					<img class="dpc-user-logged__avatar" src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $public_name ); ?>" width="<?php echo esc_attr( (string) $size_desktop ); ?>" height="<?php echo esc_attr( (string) $size_desktop ); ?>" loading="lazy" />
+					<img class="dpc-user-logged__avatar" src="<?php echo esc_attr( $safe_avatar_src ); ?>" alt="<?php echo esc_attr( $public_name ); ?>" width="<?php echo esc_attr( (string) $size_desktop ); ?>" height="<?php echo esc_attr( (string) $size_desktop ); ?>" loading="lazy" />
 				</button>
 				<div class="dpc-user-dropdown" role="menu">
 					<div class="dpc-user-dropdown__profile">
-						<img class="dpc-user-dropdown__avatar" src="<?php echo esc_url( $avatar_url ); ?>" alt="<?php echo esc_attr( $public_name ); ?>" width="48" height="48" loading="lazy" />
+						<img class="dpc-user-dropdown__avatar" src="<?php echo esc_attr( $safe_avatar_src ); ?>" alt="<?php echo esc_attr( $public_name ); ?>" width="48" height="48" loading="lazy" />
 						<div class="dpc-user-dropdown__info">
 							<span class="dpc-user-dropdown__name"><?php echo esc_html( $public_name ); ?></span>
 						</div>
