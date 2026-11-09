@@ -105,6 +105,11 @@ final class Settings {
 						$clean_slug = '';
 					}
 					$existing[ $field_key ] = $clean_slug;
+				} elseif ( 'email' === $field_type ) {
+					$raw_email = isset( $input_data[ $field_key ] )
+						? sanitize_email( wp_unslash( (string) $input_data[ $field_key ] ) )
+						: '';
+					$existing[ $field_key ] = $raw_email;
 				} elseif ( 'css_font_size' === $field_type ) {
 					$raw_size = isset( $input_data[ $field_key ] )
 						? trim( sanitize_text_field( wp_unslash( (string) $input_data[ $field_key ] ) ) )
@@ -157,12 +162,15 @@ final class Settings {
 	private function get_tab_fields_schema(): array {
 		return [
 			'general'  => [
-				'enable_social_auth'  => 'checkbox',
-				'enable_post_rating'  => 'checkbox',
-				'enable_comments'     => 'checkbox',
-				'enable_custom_login' => 'checkbox',
-				'custom_login_slug'   => 'slug',
-				'hide_admin_bar'      => 'checkbox',
+				'enable_social_auth'    => 'checkbox',
+				'enable_post_rating'    => 'checkbox',
+				'enable_comments'       => 'checkbox',
+				'enable_custom_login'   => 'checkbox',
+				'custom_login_slug'     => 'slug',
+				'hide_admin_bar'        => 'checkbox',
+				'mail_from_name'        => 'text',
+				'mail_from_email'       => 'email',
+				'disable_divi_projects' => 'checkbox',
 			],
 			'auth'     => [
 				'auth_show_in_comments'        => 'checkbox',
@@ -299,12 +307,15 @@ final class Settings {
 	}
 
 	private function render_general_tab(): void {
-		$enable_social_auth  = (int) dpc_get_option( 'enable_social_auth', 0 );
-		$enable_post_rating  = (int) dpc_get_option( 'enable_post_rating', 0 );
-		$enable_comments     = (int) dpc_get_option( 'enable_comments', 0 );
-		$enable_custom_login = (int) dpc_get_option( 'enable_custom_login', 0 );
-		$custom_login_slug   = (string) dpc_get_option( 'custom_login_slug', '' );
-		$hide_admin_bar      = (int) dpc_get_option( 'hide_admin_bar', 0 );
+		$enable_social_auth    = (int) dpc_get_option( 'enable_social_auth', 0 );
+		$enable_post_rating    = (int) dpc_get_option( 'enable_post_rating', 0 );
+		$enable_comments       = (int) dpc_get_option( 'enable_comments', 0 );
+		$enable_custom_login   = (int) dpc_get_option( 'enable_custom_login', 0 );
+		$custom_login_slug     = (string) dpc_get_option( 'custom_login_slug', '' );
+		$hide_admin_bar        = (int) dpc_get_option( 'hide_admin_bar', 0 );
+		$mail_from_name        = (string) dpc_get_option( 'mail_from_name', '' );
+		$mail_from_email       = (string) dpc_get_option( 'mail_from_email', '' );
+		$disable_divi_projects = (int) dpc_get_option( 'disable_divi_projects', 0 );
 		?>
 		<div class="dpc-card">
 			<h2><?php echo esc_html__( 'Управление модулями', 'divi-pro-engagement' ); ?></h2>
@@ -378,6 +389,53 @@ final class Settings {
 				</div>
 				<div class="dpc-field-input">
 					<?php $this->render_toggle( 'hide_admin_bar', $hide_admin_bar ); ?>
+				</div>
+			</div>
+		</div>
+
+		<div class="dpc-card">
+			<h2><?php echo esc_html__( 'Системные утилиты и Почта', 'divi-pro-engagement' ); ?></h2>
+			<p class="dpc-card-subtitle"><?php echo esc_html__( 'Настройка отправителя системных писем WordPress и оптимизация меню темы Divi.', 'divi-pro-engagement' ); ?></p>
+
+			<div class="dpc-input-row" style="margin-bottom: 16px;">
+				<label for="mail_from_name">
+					<strong><?php echo esc_html__( 'Имя отправителя системных писем (Sender Name)', 'divi-pro-engagement' ); ?></strong>
+					<span class="description" style="display:block; margin-top:3px; color:#64748b;"><?php echo esc_html__( 'Например: Info или название вашего сайта (оставьте пустым для стандартного значения).', 'divi-pro-engagement' ); ?></span>
+				</label>
+				<input
+					type="text"
+					id="mail_from_name"
+					name="dpc_settings[mail_from_name]"
+					placeholder="<?php echo esc_attr( get_bloginfo( 'name' ) ); ?>"
+					value="<?php echo esc_attr( $mail_from_name ); ?>"
+					class="regular-text"
+					style="max-width: 380px; margin-top: 6px;"
+				/>
+			</div>
+
+			<div class="dpc-input-row" style="margin-bottom: 16px;">
+				<label for="mail_from_email">
+					<strong><?php echo esc_html__( 'Email отправителя системных писем (Sender Email)', 'divi-pro-engagement' ); ?></strong>
+					<span class="description" style="display:block; margin-top:3px; color:#64748b;"><?php echo esc_html__( 'Например: wordpress@lastwargame.online (предотвращает ошибки вида wordpress@www.domain.com на доменах с www; оставьте пустым для стандартного).', 'divi-pro-engagement' ); ?></span>
+				</label>
+				<input
+					type="email"
+					id="mail_from_email"
+					name="dpc_settings[mail_from_email]"
+					placeholder="wordpress@<?php echo esc_attr( (string) ( wp_parse_url( home_url(), PHP_URL_HOST ) ?: 'example.com' ) ); ?>"
+					value="<?php echo esc_attr( $mail_from_email ); ?>"
+					class="regular-text"
+					style="max-width: 380px; margin-top: 6px;"
+				/>
+			</div>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Отключить стандартный тип записей "Projects" (Проекты) темы Divi в админ-меню', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Полностью скрывает неиспользуемый раздел "Проекты" темы Divi из бокового меню и отключает его регистрацию.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'disable_divi_projects', $disable_divi_projects ); ?>
 				</div>
 			</div>
 		</div>

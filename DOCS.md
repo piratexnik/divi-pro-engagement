@@ -1,6 +1,6 @@
-# Divi Pro Engagement v2.1.2 — Техническая документация
+# Divi Pro Engagement v2.1.3 — Техническая документация
 
-Данный документ является полным техническим справочником архитектуры, API, мета-полей, шорткодов и настроек плагина `Divi Pro Engagement` (v2.1.2). Предназначен для разработчиков и ИИ-ассистентов для работы с проектом без необходимости полного сканирования кодовой базы.
+Данный документ является полным техническим справочником архитектуры, API, мета-полей, шорткодов и настроек плагина `Divi Pro Engagement` (v2.1.3). Предназначен для разработчиков и ИИ-ассистентов для работы с проектом без необходимости полного сканирования кодовой базы.
 
 ---
 
@@ -15,6 +15,8 @@
 3. **wpDiscuz / Supercharge Divi Comments** — заменен на асинхронный модуль `CommentsEngine` (AJAX-отправка, AJAX-сортировка без перезагрузки, древовидные ответы до 5 уровней, антиспам Honeypot + Cloudflare Turnstile, плавающий nudge-виджет).
 4. **Leira Letter Avatar / Simple Local Avatars** — заменен на встроенный генератор векторных SVG Data-URI аватарок по первой букве имени (0 внешних HTTP-запросов к Gravatar) с поддержкой аватарок из соцсетей.
 5. **WPS Hide Login** — заменен на модуль `CustomLogin` (маршрутизация нестандартного URL авторизации, блокировка прямого доступа к `wp-login.php` и 404-ответ для гостей, отключение админ-бара и `/wp-admin/` для подписчиков).
+6. **Change Mail Sender** — заменен на системные фильтры `wp_mail_from` / `wp_mail_from_name` (приоритет 99) для кастомизации имени и адреса отправителя системных писем.
+7. **Отключение CPT "Projects" темы Divi** — выгрузка неиспользуемого типа записей `project` из админ-меню и запросов WordPress.
 
 ---
 
@@ -37,7 +39,7 @@ divi-pro-engagement/
 └── includes/
     ├── Core/
     │   ├── CustomLogin.php        # DiviProEngagement\Core\CustomLogin (кастомный URL входа, 404, ограничение /wp-admin/)
-    │   ├── Init.php               # DiviProEngagement\Core\Init (хуки, ассеты, публичный dpc_refresh_nonce, DRY-хелперы)
+    │   ├── Init.php               # DiviProEngagement\Core\Init (хуки, ассеты, dpc_refresh_nonce, Mail Sender, откл. CPT project, хелперы)
     │   ├── Settings.php           # DiviProEngagement\Core\Settings (страница настроек, валидация, импорт kk Star Ratings)
     │   ├── Shortcodes.php         # DiviProEngagement\Core\Shortcodes (регистрация [dpc_social_login] и [dpc_post_rating])
     │   └── Updater.php            # DiviProEngagement\Core\Updater (автообновление с GitHub через transient WordPress)
@@ -212,6 +214,9 @@ $args = [
 | `enable_custom_login` | `bool` | `0` (выключено) | Включение защиты и подмены URL страницы авторизации `wp-login.php`. |
 | `custom_login_slug` | `string` | `''` | Слаг кастомного адреса входа (например: `secret-gate`). |
 | `hide_admin_bar` | `bool` | `0` (выключено) | Скрытие панели Admin Bar и блокировка `/wp-admin/` для роли `subscriber`. |
+| `mail_from_name` | `string` | `''` | Имя отправителя исходящих системных писем WordPress (Sender Name). |
+| `mail_from_email` | `string` | `''` | Email отправителя системных писем (`sanitize_email`, защита от `wordpress@www.domain`). |
+| `disable_divi_projects` | `bool` | `0` (выключено) | Полное отключение неиспользуемого стандартного CPT `project` (Проекты) темы Divi. |
 
 ### Вкладка 2: Соц. Авторизация (`auth`)
 | Ключ опции | Тип | Значение по умолчанию | Описание |

@@ -66,6 +66,23 @@ final class Init {
 				add_filter( 'comment_form_defaults', [ $this, 'filter_comment_form_logged_in_as' ] );
 			}
 		}
+
+		// System Utility: Mail Sender
+		$mail_from_email = trim( (string) dpc_get_option( 'mail_from_email', '' ) );
+		if ( '' !== $mail_from_email && is_email( $mail_from_email ) ) {
+			add_filter( 'wp_mail_from', [ $this, 'filter_wp_mail_from' ], 99 );
+		}
+
+		$mail_from_name = trim( (string) dpc_get_option( 'mail_from_name', '' ) );
+		if ( '' !== $mail_from_name ) {
+			add_filter( 'wp_mail_from_name', [ $this, 'filter_wp_mail_from_name' ], 99 );
+		}
+
+		// System Utility: Disable Divi Projects CPT
+		if ( (bool) dpc_get_option( 'disable_divi_projects', false ) ) {
+			add_filter( 'et_project_posttype_args', [ $this, 'filter_divi_project_args' ] );
+			add_action( 'init', [ $this, 'disable_divi_project_post_type' ], 100 );
+		}
 	}
 
 	/**
@@ -205,5 +222,55 @@ final class Init {
 		}
 
 		return $list;
+	}
+
+	/**
+	 * Override sender email for outgoing WordPress emails.
+	 */
+	public function filter_wp_mail_from( string $from_email ): string {
+		$custom_email = trim( (string) dpc_get_option( 'mail_from_email', '' ) );
+		if ( '' !== $custom_email && is_email( $custom_email ) ) {
+			return $custom_email;
+		}
+		return $from_email;
+	}
+
+	/**
+	 * Override sender name for outgoing WordPress emails.
+	 */
+	public function filter_wp_mail_from_name( string $from_name ): string {
+		$custom_name = trim( (string) dpc_get_option( 'mail_from_name', '' ) );
+		if ( '' !== $custom_name ) {
+			return $custom_name;
+		}
+		return $from_name;
+	}
+
+	/**
+	 * Modify Divi 'project' CPT arguments to hide it from admin and queries.
+	 *
+	 * @param array<string, mixed> $args
+	 * @return array<string, mixed>
+	 */
+	public function filter_divi_project_args( array $args ): array {
+		$args['public']              = false;
+		$args['show_ui']             = false;
+		$args['show_in_menu']        = false;
+		$args['show_in_admin_bar']   = false;
+		$args['show_in_nav_menus']   = false;
+		$args['can_export']          = false;
+		$args['has_archive']         = false;
+		$args['exclude_from_search'] = true;
+		$args['publicly_queryable']  = false;
+		return $args;
+	}
+
+	/**
+	 * Unregister Divi 'project' CPT if registered.
+	 */
+	public function disable_divi_project_post_type(): void {
+		if ( post_type_exists( 'project' ) ) {
+			unregister_post_type( 'project' );
+		}
 	}
 }
