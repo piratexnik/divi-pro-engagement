@@ -571,8 +571,6 @@ final class AuthManager {
 			return '';
 		}
 
-		$current_url_encoded = rawurlencode( $current_url );
-
 		ob_start();
 		?>
 		<div class="dpc-social-login dpc-desktop-style-<?php echo esc_attr( $style_desktop ); ?> dpc-mobile-style-<?php echo esc_attr( $style_mobile ); ?> skin-<?php echo esc_attr( $skin ); ?>" style="<?php echo esc_attr( $size_vars ); ?>">
@@ -581,7 +579,7 @@ final class AuthManager {
 					<?php
 					$google_start_url = add_query_arg(
 						'redirect_to',
-						$current_url_encoded,
+						$current_url,
 						rest_url( self::REST_NAMESPACE . '/auth/google/start' )
 					);
 					?>
@@ -620,7 +618,7 @@ final class AuthManager {
 					<?php
 					$discord_start_url = add_query_arg(
 						'redirect_to',
-						$current_url_encoded,
+						$current_url,
 						rest_url( self::REST_NAMESPACE . '/auth/discord/start' )
 					);
 					?>
@@ -638,7 +636,7 @@ final class AuthManager {
 					<?php
 					$twitter_start_url = add_query_arg(
 						'redirect_to',
-						$current_url_encoded,
+						$current_url,
 						rest_url( self::REST_NAMESPACE . '/auth/twitter/start' )
 					);
 					?>
@@ -656,7 +654,7 @@ final class AuthManager {
 					<?php
 					$facebook_start_url = add_query_arg(
 						'redirect_to',
-						$current_url_encoded,
+						$current_url,
 						rest_url( self::REST_NAMESPACE . '/auth/facebook/start' )
 					);
 					?>
@@ -687,9 +685,20 @@ final class AuthManager {
 	}
 
 	private function get_current_page_url(): string {
+		if ( wp_doing_ajax() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
+			$referer = wp_get_referer();
+			if ( is_string( $referer ) && '' !== $referer ) {
+				return $referer;
+			}
+		}
+
 		if ( is_singular() ) {
 			$permalink = get_permalink();
 			if ( is_string( $permalink ) && '' !== $permalink ) {
+				$query = isset( $_SERVER['QUERY_STRING'] ) ? trim( (string) $_SERVER['QUERY_STRING'] ) : '';
+				if ( '' !== $query ) {
+					return $permalink . ( str_contains( $permalink, '?' ) ? '&' : '?' ) . $query;
+				}
 				return $permalink;
 			}
 		}

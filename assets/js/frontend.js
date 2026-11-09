@@ -284,6 +284,118 @@ jQuery(document).ready(function($) {
 	syncClientVotes();
 
 	// =========================================================================
+	// 0.1 Scroll Position Persistence (Auth & Logout)
+	// =========================================================================
+	function getCleanCurrentUrl() {
+		return window.location.href.split('#')[0];
+	}
+
+	function updateRedirectToParam(url, newTarget) {
+		try {
+			var parsed = new URL(url, window.location.origin);
+			parsed.searchParams.set('redirect_to', newTarget);
+			return parsed.toString();
+		} catch (e) {
+			return url;
+		}
+	}
+
+	function saveScrollRestoreState(inComments) {
+		try {
+			if (window.sessionStorage) {
+				var state = {
+					path: window.location.pathname + window.location.search,
+					scrollY: Math.round(window.scrollY || window.pageYOffset || 0),
+					inComments: !!inComments,
+					timestamp: Date.now()
+				};
+				window.sessionStorage.setItem('dpc_scroll_restore', JSON.stringify(state));
+			}
+		} catch (e) {}
+	}
+
+	function restoreScrollPosition() {
+		var rawData = null;
+		try {
+			if (window.sessionStorage) {
+				rawData = window.sessionStorage.getItem('dpc_scroll_restore');
+				window.sessionStorage.removeItem('dpc_scroll_restore');
+			}
+		} catch (e) {}
+
+		if (!rawData) {
+			return;
+		}
+
+		var data = null;
+		try {
+			data = JSON.parse(rawData);
+		} catch (e) {
+			return;
+		}
+
+		if (!data || typeof data.scrollY !== 'number' || !data.path || !data.timestamp) {
+			return;
+		}
+
+		var currentPath = window.location.pathname + window.location.search;
+		if (data.path !== currentPath) {
+			return;
+		}
+
+		if (Date.now() - data.timestamp >= 300000) {
+			return;
+		}
+
+		var targetY = data.scrollY;
+
+		window.scrollTo({ top: targetY, behavior: 'instant' });
+
+		if (window.requestAnimationFrame) {
+			window.requestAnimationFrame(function() {
+				window.scrollTo({ top: targetY, behavior: 'instant' });
+			});
+		}
+
+		setTimeout(function() {
+			window.scrollTo({ top: targetY, behavior: 'instant' });
+
+			if (data.inComments === true) {
+				var $textarea = $('#dpc-comment-textarea');
+				var isUserLoggedIn = $('.dpc-user-logged').length > 0 || $('.dpc-author-input').length === 0;
+
+				if ($textarea.length && isUserLoggedIn && $textarea[0]) {
+					try {
+						$textarea[0].focus({ preventScroll: true });
+					} catch (e) {
+						$textarea.trigger('focus');
+					}
+				}
+			}
+		}, 50);
+	}
+
+	restoreScrollPosition();
+
+	// Intercept click on any social auth or logout button to save scroll and refresh redirect_to
+	$(document).on('click', '.dpc-social-btn, .dpc-logout-btn', function() {
+		var $el = $(this);
+		var inComments = $el.closest('#dpc-comments, #dpc-comment-form, .dpc-comments-area').length > 0;
+		saveScrollRestoreState(inComments);
+
+		var cleanUrl = getCleanCurrentUrl();
+
+		if ($el.hasClass('dpc-btn-telegram')) {
+			$el.attr('data-redirect', cleanUrl);
+		} else {
+			var href = $el.attr('href');
+			if (href) {
+				$el.attr('href', updateRedirectToParam(href, cleanUrl));
+			}
+		}
+	});
+
+	// =========================================================================
 	// 1. Telegram Direct JS Auth (On-Demand Dynamic Script Loading)
 	// =========================================================================
 	var telegramScriptPromise = null;
@@ -329,7 +441,7 @@ jQuery(document).ready(function($) {
 
 		var $btn = $(this);
 		var botId = $btn.attr('data-bot-id');
-		var redirectTo = $btn.attr('data-redirect') || window.location.href;
+		var redirectTo = getCleanCurrentUrl();
 		var baseCallback = (window.dpcFrontend && window.dpcFrontend.telegramCallbackUrl)
 			? window.dpcFrontend.telegramCallbackUrl
 			: '/wp-json/dpc/v1/auth/telegram';
@@ -356,9 +468,7 @@ jQuery(document).ready(function($) {
 						}
 					}
 
-					if (redirectTo) {
-						params.set('redirect_to', redirectTo);
-					}
+					params.set('redirect_to', redirectTo);
 
 					var separator = baseCallback.indexOf('?') !== -1 ? '&' : '?';
 					window.location.href = baseCallback + separator + params.toString();
