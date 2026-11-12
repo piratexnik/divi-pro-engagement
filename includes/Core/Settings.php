@@ -171,6 +171,7 @@ final class Settings {
 				'mail_from_name'        => 'text',
 				'mail_from_email'       => 'email',
 				'disable_divi_projects' => 'checkbox',
+				'github_token'          => 'text',
 			],
 			'auth'     => [
 				'auth_show_in_comments'        => 'checkbox',
@@ -316,6 +317,7 @@ final class Settings {
 		$mail_from_name        = (string) dpc_get_option( 'mail_from_name', '' );
 		$mail_from_email       = (string) dpc_get_option( 'mail_from_email', '' );
 		$disable_divi_projects = (int) dpc_get_option( 'disable_divi_projects', 0 );
+		$github_token          = (string) dpc_get_option( 'github_token', '' );
 		?>
 		<div class="dpc-card">
 			<h2><?php echo esc_html__( 'Управление модулями', 'divi-pro-engagement' ); ?></h2>
@@ -437,6 +439,23 @@ final class Settings {
 				<div class="dpc-field-input">
 					<?php $this->render_toggle( 'disable_divi_projects', $disable_divi_projects ); ?>
 				</div>
+			</div>
+
+			<div class="dpc-input-row" style="margin-bottom: 16px;">
+				<label for="github_token">
+					<strong><?php echo esc_html__( 'GitHub Personal Access Token', 'divi-pro-engagement' ); ?></strong>
+					<span class="description" style="display:block; margin-top:3px; color:#64748b;"><?php echo esc_html__( 'Только если репозиторий приватный; можно также задать константой DPC_GITHUB_TOKEN в wp-config.php.', 'divi-pro-engagement' ); ?></span>
+				</label>
+				<input
+					type="password"
+					id="github_token"
+					name="dpc_settings[github_token]"
+					placeholder="ghp_xxxxxxxxxxxx"
+					value="<?php echo esc_attr( $github_token ); ?>"
+					class="regular-text"
+					style="max-width: 380px; margin-top: 6px;"
+					autocomplete="new-password"
+				/>
 			</div>
 		</div>
 
