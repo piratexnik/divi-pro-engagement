@@ -1473,6 +1473,13 @@ button.dpc-btn:active {
 	line-height: 1.4;
 }
 
+.dpc-gatekeeper-toast__icon {
+	display: inline-block;
+	color: #10b981;
+	font-weight: 700;
+	font-size: 15px;
+}
+
 .dpc-gatekeeper-toast__btn {
 	display: inline-flex;
 	align-items: center;

@@ -77,24 +77,21 @@ final class DownloadGatekeeper {
 				'description' => 'Завантаження технічної документації, каталогів PDF та креслень AutoCAD доступне після швидкої авторизації. Увійдіть за кілька секунд:',
 				'close'       => 'Закрити',
 				'login_btn'   => 'Увійти на сайт',
-				'toast_title' => '✓ Авторизація успішна! Завантаження розпочинається...',
-				'toast_btn'   => 'Завантажити файл',
+				'toast_title' => '✓ Дякуємо за авторизацію! Завантаження розпочато.',
 			],
 			'ru' => [
 				'title'       => '🔒 Доступ только для авторизованных пользователей',
 				'description' => 'Скачивание технической документации, каталогов PDF и чертежей AutoCAD доступно после быстрой авторизации:',
 				'close'       => 'Закрыть',
 				'login_btn'   => 'Войти на сайт',
-				'toast_title' => '✓ Вы успешно вошли! Загрузка начинается...',
-				'toast_btn'   => 'Скачать файл',
+				'toast_title' => '✓ Спасибо за авторизацию! Загрузка началась.',
 			],
 			'en' => [
 				'title'       => '🔒 Access for Authorized Users Only',
 				'description' => 'Downloading technical documentation, PDF catalogs, and AutoCAD drawings is available after quick sign-in:',
 				'close'       => 'Close',
 				'login_btn'   => 'Sign In',
-				'toast_title' => '✓ Signed in successfully! Starting download...',
-				'toast_btn'   => 'Download file',
+				'toast_title' => '✓ Thank you for signing in! Your download is starting.',
 			],
 		];
 	}

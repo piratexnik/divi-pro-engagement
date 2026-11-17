@@ -1005,24 +1005,21 @@ jQuery(document).ready(function($) {
 			description: 'Завантаження технічної документації, каталогів PDF та креслень AutoCAD доступне після швидкої авторизації. Увійдіть за кілька секунд:',
 			close: 'Закрити',
 			login_btn: 'Увійти на сайт',
-			toast_title: '✓ Авторизація успішна! Завантаження розпочинається...',
-			toast_btn: 'Завантажити файл'
+			toast_title: '✓ Дякуємо за авторизацію! Завантаження розпочато.'
 		},
 		ru: {
 			title: '🔒 Доступ только для авторизованных пользователей',
 			description: 'Скачивание технической документации, каталогов PDF и чертежей AutoCAD доступно после быстрой авторизации:',
 			close: 'Закрыть',
 			login_btn: 'Войти на сайт',
-			toast_title: '✓ Вы успешно вошли! Загрузка начинается...',
-			toast_btn: 'Скачать файл'
+			toast_title: '✓ Спасибо за авторизацию! Загрузка началась.'
 		},
 		en: {
 			title: '🔒 Access for Authorized Users Only',
 			description: 'Downloading technical documentation, PDF catalogs, and AutoCAD drawings is available after quick sign-in:',
 			close: 'Close',
 			login_btn: 'Sign In',
-			toast_title: '✓ Signed in successfully! Starting download...',
-			toast_btn: 'Download file'
+			toast_title: '✓ Thank you for signing in! Your download is starting.'
 		}
 	};
 
@@ -1166,20 +1163,27 @@ jQuery(document).ready(function($) {
 		return false;
 	}
 
-	function showGatekeeperToast(downloadUrl) {
+	function showGatekeeperToast() {
 		var strings = getGatekeeperStrings();
 		$('.dpc-gatekeeper-toast').remove();
 
+		var toastText = (strings && strings.toast_title) ? strings.toast_title : '✓';
 		var $toast = $('<div class="dpc-gatekeeper-toast" role="status" aria-live="polite"></div>');
 		var $content = $('<div class="dpc-gatekeeper-toast__content"></div>');
-		var $msg = $('<span class="dpc-gatekeeper-toast__text"></span>').text(strings.toast_title);
-		var $btn = $('<a class="dpc-gatekeeper-toast__btn" download data-dpc-gk-skip="1"></a>')
-			.attr('href', downloadUrl)
-			.text(strings.toast_btn);
-		var $close = $('<button type="button" class="dpc-gatekeeper-toast__close">&times;</button>')
-			.attr('aria-label', strings.close);
+		var $msg = $('<span class="dpc-gatekeeper-toast__text"></span>');
 
-		$content.append($msg).append($btn);
+		if (toastText.indexOf('✓') === 0) {
+			var $icon = $('<span class="dpc-gatekeeper-toast__icon" aria-hidden="true">✓</span>');
+			$msg.append($icon).append(document.createTextNode(' ' + toastText.replace(/^✓\s*/, '')));
+		} else {
+			$msg.text(toastText);
+		}
+
+		var closeLabel = (strings && strings.close) ? strings.close : 'Close';
+		var $close = $('<button type="button" class="dpc-gatekeeper-toast__close">&times;</button>')
+			.attr('aria-label', closeLabel);
+
+		$content.append($msg);
 		$toast.append($content).append($close);
 		$('body').append($toast);
 
@@ -1192,7 +1196,7 @@ jQuery(document).ready(function($) {
 			setTimeout(function() {
 				$toast.remove();
 			}, 300);
-		}, 12000);
+		}, 4500);
 
 		$close.on('click', function() {
 			clearTimeout(autoHideTimer);
@@ -1224,6 +1228,7 @@ jQuery(document).ready(function($) {
 
 		var targetHref = parsedPending.href;
 		var targetPathSearch = parsedPending.pathname + parsedPending.search;
+		var targetLink = null;
 
 		$('a[href]').each(function() {
 			if ($(this).closest('#dpc-gatekeeper-modal, .dpc-gatekeeper-toast').length) {
@@ -1233,22 +1238,51 @@ jQuery(document).ready(function($) {
 				var linkParsed = new URL(this.href, window.location.origin);
 				if (linkParsed.href === targetHref || (linkParsed.origin === window.location.origin && (linkParsed.pathname + linkParsed.search) === targetPathSearch)) {
 					$(this).addClass('dpc-download-ready');
+					if (!targetLink) {
+						targetLink = this;
+					}
 				}
 			} catch (e) {}
 		});
 
+		var inlineExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'];
+		var pathname = parsedPending.pathname || '';
 		try {
-			var tempLink = document.createElement('a');
-			tempLink.href = targetHref;
-			tempLink.setAttribute('download', '');
-			tempLink.setAttribute('data-dpc-gk-skip', '1');
-			tempLink.style.display = 'none';
-			document.body.appendChild(tempLink);
-			tempLink.click();
-			document.body.removeChild(tempLink);
+			pathname = decodeURIComponent(pathname);
 		} catch (e) {}
+		var lastSegment = pathname.split('/').pop() || '';
+		var dotIdx = lastSegment.lastIndexOf('.');
+		var fileExt = dotIdx !== -1 ? lastSegment.slice(dotIdx + 1).toLowerCase() : '';
+		var isInlineViewable = inlineExts.indexOf(fileExt) !== -1;
 
-		showGatekeeperToast(targetHref);
+		if (isInlineViewable) {
+			if (targetLink) {
+				var linkTarget = (targetLink.getAttribute('target') || '').trim().toLowerCase();
+				if (linkTarget === '_blank') {
+					var opened = null;
+					try {
+						opened = window.open(targetHref, '_blank');
+					} catch (e) {}
+					if (!opened) {
+						try {
+							targetLink.click();
+						} catch (e) {}
+					}
+				} else {
+					try {
+						targetLink.click();
+					} catch (e) {
+						window.location.assign(targetHref);
+					}
+				}
+			} else {
+				window.location.assign(targetHref);
+			}
+		} else {
+			window.location.assign(targetHref);
+		}
+
+		showGatekeeperToast();
 	}
 
 	$(document).on('click', 'a[href]', function(e) {
