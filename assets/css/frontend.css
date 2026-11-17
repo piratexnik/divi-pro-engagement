@@ -429,35 +429,27 @@ button.dpc-btn:active {
 /* ==========================================================================
    2.1 Minimalist Inline Auth Shortcode ([dpc_mini_login])
    ========================================================================== */
-.dpc-mini-login-btn {
+.dpc-mini-login-btn,
+.dpc-mini-user {
 	display: inline-flex;
 	align-items: center;
-	justify-content: center;
 	gap: 6px;
-	height: 1.8em;
-	min-height: 26px;
-	max-height: 32px;
-	padding: 0 11px;
-	margin: 0;
-	font-family: inherit;
-	font-size: inherit;
-	font-weight: 500;
-	line-height: 1;
-	color: inherit;
 	background: transparent;
-	border: 1px solid currentColor;
-	border-color: rgba(148, 163, 184, 0.45);
-	border-radius: 9999px;
-	cursor: pointer;
-	white-space: nowrap;
+	border: none;
+	padding: 0;
+	margin: 0;
+	color: inherit;
+	font: inherit;
+	line-height: inherit;
 	vertical-align: middle;
+	white-space: nowrap;
 	box-sizing: border-box;
-	transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, opacity 0.18s ease;
 }
 
-.dpc-mini-login-btn:hover {
-	background-color: rgba(148, 163, 184, 0.14);
-	border-color: currentColor;
+.dpc-mini-login-btn {
+	justify-content: center;
+	cursor: pointer;
+	transition: opacity 0.18s ease;
 }
 
 .dpc-mini-login-btn__icon {
@@ -465,30 +457,26 @@ button.dpc-btn:active {
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
+	color: inherit;
+	opacity: 0.75;
+	transition: opacity 0.18s ease;
+}
+
+.dpc-mini-login-btn:hover .dpc-mini-login-btn__icon {
+	opacity: 1;
 }
 
 .dpc-mini-login-btn__icon svg {
 	width: 1em;
 	height: 1em;
+	color: inherit;
 	display: block;
 }
 
 .dpc-mini-login-btn__text {
 	display: inline-block;
-	line-height: 1;
-}
-
-.dpc-mini-user {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	height: 1.8em;
-	min-height: 26px;
-	vertical-align: middle;
-	font-family: inherit;
-	font-size: inherit;
-	line-height: 1;
-	box-sizing: border-box;
+	color: inherit;
+	line-height: inherit;
 }
 
 .dpc-mini-user__avatar {
@@ -501,31 +489,43 @@ button.dpc-btn:active {
 }
 
 .dpc-mini-user__name {
-	font-size: 0.9em;
-	font-weight: 500;
+	color: inherit;
+	font: inherit;
+	line-height: inherit;
 	max-width: 120px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	line-height: 1.2;
 }
 
+.dpc-mini-user .dpc-logout-btn,
 .dpc-mini-user__logout {
-	width: 24px;
-	height: 24px;
-	border-radius: 6px;
-	background: transparent;
+	width: auto;
+	height: auto;
+	padding: 0;
+	margin: 0;
+	border: none;
+	border-radius: 0;
+	background: transparent !important;
 	color: inherit !important;
-	opacity: 0.78;
+	opacity: 0.75;
+	transition: opacity 0.18s ease, transform 0.15s ease;
 }
 
+.dpc-mini-user .dpc-logout-btn:hover,
 .dpc-mini-user__logout:hover {
+	background-color: transparent !important;
+	color: inherit !important;
 	opacity: 1;
+	transform: translateX(1px);
 }
 
+.dpc-mini-user .dpc-logout-btn svg,
 .dpc-mini-user__logout svg {
-	width: 15px;
-	height: 15px;
+	width: 1em;
+	height: 1em;
+	color: inherit;
+	display: block;
 }
 
 /* ==========================================================================
