@@ -3,11 +3,14 @@ declare(strict_types=1);
 
 namespace DiviProEngagement\Modules\Auth;
 
+use DiviProEngagement\Core\Init;
 use DiviProEngagement\Modules\Auth\Providers\GoogleProvider;
 use DiviProEngagement\Modules\Auth\Providers\DiscordProvider;
 use DiviProEngagement\Modules\Auth\Providers\FacebookProvider;
 use DiviProEngagement\Modules\Auth\Providers\TelegramProvider;
 use DiviProEngagement\Modules\Auth\Providers\TwitterProvider;
+use DiviProEngagement\Modules\Comments\CommentsEngine;
+use DiviProEngagement\Modules\Downloads\DownloadGatekeeper;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -20,6 +23,8 @@ final class AuthManager {
 	private static ?self $instance = null;
 	private bool $avatar_filters_registered = false;
 	private bool $oauth_routes_registered   = false;
+	private bool $auth_modal_scheduled      = false;
+	private bool $auth_modal_rendered       = false;
 
 	public static function get_instance(): self {
 		if ( null === self::$instance ) {
@@ -669,6 +674,165 @@ final class AuthManager {
 				<?php endif; ?>
 			</div>
 		</div>
+		<?php
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Localized strings for [dpc_mini_login] button and universal auth modal.
+	 *
+	 * @return array<string, array<string, string>>
+	 */
+	public static function get_mini_auth_dictionaries(): array {
+		return [
+			'uk' => [
+				'btn_label'   => 'Увійти',
+				'modal_title' => 'Швидка авторизація',
+				'modal_desc'  => 'Оберіть зручний спосіб входу на сайт:',
+				'close'       => 'Закрити',
+				'login_btn'   => 'Увійти на сайт',
+				'logout'      => 'Вийти',
+			],
+			'ru' => [
+				'btn_label'   => 'Войти',
+				'modal_title' => 'Быстрая авторизация',
+				'modal_desc'  => 'Выберите удобный способ входа на сайт:',
+				'close'       => 'Закрыть',
+				'login_btn'   => 'Войти на сайт',
+				'logout'      => 'Выйти',
+			],
+			'en' => [
+				'btn_label'   => 'Sign in',
+				'modal_title' => 'Quick Sign In',
+				'modal_desc'  => 'Choose your preferred sign-in method:',
+				'close'       => 'Close',
+				'login_btn'   => 'Sign In',
+				'logout'      => 'Log out',
+			],
+		];
+	}
+
+	/**
+	 * Ensure the shared auth modal is rendered once in wp_footer for guests.
+	 */
+	public function schedule_auth_modal(): void {
+		if ( $this->auth_modal_scheduled || $this->auth_modal_rendered || is_admin() || Init::is_visual_builder_active() || is_user_logged_in() ) {
+			return;
+		}
+		$this->auth_modal_scheduled = true;
+		add_action( 'wp_footer', [ $this, 'render_auth_modal_html' ], 20 );
+	}
+
+	/**
+	 * Render shared auth modal (#dpc-gatekeeper-modal) once per page for guests.
+	 *
+	 * @param string $default_mode 'auth' or 'gatekeeper'.
+	 */
+	public function render_auth_modal_html( string $default_mode = 'auth' ): void {
+		if ( $this->auth_modal_rendered || is_admin() || Init::is_visual_builder_active() || is_user_logged_in() ) {
+			return;
+		}
+		$this->auth_modal_rendered = true;
+
+		$lang       = CommentsEngine::detect_lang_code();
+		$mini_dicts = self::get_mini_auth_dictionaries();
+		$mini_texts = $mini_dicts[ $lang ] ?? $mini_dicts['en'];
+
+		if ( 'gatekeeper' === $default_mode && class_exists( DownloadGatekeeper::class ) ) {
+			$gk_dicts = DownloadGatekeeper::get_all_dictionaries();
+			$gk_texts = $gk_dicts[ $lang ] ?? $gk_dicts['en'];
+			$title    = $gk_texts['title'];
+			$desc     = $gk_texts['description'];
+			$close    = $gk_texts['close'];
+			$login    = $gk_texts['login_btn'];
+		} else {
+			$title = $mini_texts['modal_title'];
+			$desc  = $mini_texts['modal_desc'];
+			$close = $mini_texts['close'];
+			$login = $mini_texts['login_btn'];
+		}
+
+		$auth_html = '';
+		if ( (bool) dpc_get_option( 'enable_social_auth', false ) ) {
+			$auth_html = $this->render_auth_box( 'shortcode' );
+		}
+
+		$request_uri = isset( $_SERVER['REQUEST_URI'] )
+			? sanitize_text_field( wp_unslash( (string) $_SERVER['REQUEST_URI'] ) )
+			: '/';
+		$login_url   = wp_login_url( home_url( $request_uri ) );
+		?>
+		<div id="dpc-gatekeeper-modal" class="dpc-gatekeeper-modal dpc-auth-modal" role="dialog" aria-modal="true" aria-labelledby="dpc-gatekeeper-title" aria-hidden="true">
+			<div class="dpc-gatekeeper-modal__overlay" data-dpc-gk-close="1"></div>
+			<div class="dpc-gatekeeper-modal__dialog">
+				<button type="button" class="dpc-gatekeeper-modal__close" data-dpc-gk-close="1" data-dpc-gk-i18n-aria="close" aria-label="<?php echo esc_attr( $close ); ?>">
+					<span aria-hidden="true">&times;</span>
+				</button>
+				<h3 id="dpc-gatekeeper-title" class="dpc-gatekeeper-modal__title" data-dpc-gk-i18n="title"><?php echo esc_html( $title ); ?></h3>
+				<p class="dpc-gatekeeper-modal__desc" data-dpc-gk-i18n="description"><?php echo esc_html( $desc ); ?></p>
+				<div class="dpc-gatekeeper-modal__auth">
+					<?php if ( '' !== $auth_html ) : ?>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Output escaped inside render_auth_box().
+						echo $auth_html;
+						?>
+					<?php else : ?>
+						<a href="<?php echo esc_url( $login_url ); ?>" class="dpc-btn dpc-gatekeeper-login-fallback" data-dpc-gk-i18n="login_btn"><?php echo esc_html( $login ); ?></a>
+					<?php endif; ?>
+				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render minimalist inline auth pill or user badge for narrow header bars ([dpc_mini_login]).
+	 */
+	public function render_mini_auth_box(): string {
+		$lang  = CommentsEngine::detect_lang_code();
+		$dicts = self::get_mini_auth_dictionaries();
+		$texts = $dicts[ $lang ] ?? $dicts['en'];
+
+		if ( is_user_logged_in() ) {
+			$current_user = wp_get_current_user();
+			$avatar_url   = get_avatar_url( $current_user->ID, [ 'size' => 48 ] );
+			$logout_url   = wp_logout_url( $this->get_current_page_url() );
+			$public_name  = trim( (string) $current_user->display_name );
+			if ( '' === $public_name || ( user_can( $current_user, 'manage_options' ) && 'admin' === strtolower( $public_name ) ) ) {
+				$public_name = 'Author';
+			}
+			$safe_avatar_src = str_starts_with( $avatar_url, 'data:image/svg+xml' ) ? $avatar_url : esc_url( $avatar_url );
+
+			ob_start();
+			?>
+			<div class="dpc-mini-user">
+				<img class="dpc-mini-user__avatar" src="<?php echo esc_attr( $safe_avatar_src ); ?>" alt="<?php echo esc_attr( $public_name ); ?>" width="24" height="24" loading="lazy" />
+				<span class="dpc-mini-user__name"><?php echo esc_html( $public_name ); ?></span>
+				<a class="dpc-logout-btn dpc-mini-user__logout" href="<?php echo esc_url( $logout_url ); ?>" title="<?php echo esc_attr( $texts['logout'] ); ?>" aria-label="<?php echo esc_attr( $texts['logout'] ); ?>">
+					<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+						<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+						<polyline points="16 17 21 12 16 7"/>
+						<line x1="21" y1="12" x2="9" y2="12"/>
+					</svg>
+				</a>
+			</div>
+			<?php
+			return (string) ob_get_clean();
+		}
+
+		$this->schedule_auth_modal();
+
+		ob_start();
+		?>
+		<button type="button" class="dpc-mini-login-btn" data-dpc-auth-trigger="1" aria-haspopup="dialog" aria-controls="dpc-gatekeeper-modal">
+			<span class="dpc-mini-login-btn__icon" aria-hidden="true">
+				<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+					<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+					<circle cx="12" cy="7" r="4"/>
+				</svg>
+			</span>
+			<span class="dpc-mini-login-btn__text" data-dpc-mini-login-label="1"><?php echo esc_html( $texts['btn_label'] ); ?></span>
+		</button>
 		<?php
 		return (string) ob_get_clean();
 	}

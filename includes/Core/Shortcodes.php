@@ -22,6 +22,7 @@ final class Shortcodes {
 
 	private function __construct() {
 		add_shortcode( 'dpc_social_login', [ $this, 'render_social_login_shortcode' ] );
+		add_shortcode( 'dpc_mini_login', [ $this, 'render_mini_login_shortcode' ] );
 		add_shortcode( 'dpc_post_rating', [ $this, 'render_post_rating_shortcode' ] );
 	}
 
@@ -48,6 +49,23 @@ final class Shortcodes {
 		);
 
 		return AuthManager::get_instance()->render_auth_box( 'shortcode', $parsed_atts );
+	}
+
+	/**
+	 * Shortcode callback for [dpc_mini_login].
+	 *
+	 * @return string
+	 */
+	public function render_mini_login_shortcode(): string {
+		if ( Init::is_visual_builder_active() ) {
+			return '';
+		}
+
+		Init::get_instance()->enqueue_frontend_assets( true );
+		$auth = AuthManager::get_instance();
+		$auth->register_avatar_filters();
+
+		return $auth->render_mini_auth_box();
 	}
 
 	/**

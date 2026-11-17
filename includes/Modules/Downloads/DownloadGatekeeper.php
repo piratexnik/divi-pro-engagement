@@ -296,48 +296,10 @@ final class DownloadGatekeeper {
 	 * Render Download Gatekeeper authorization modal in wp_footer for guests.
 	 */
 	public function render_modal_html(): void {
-		if ( is_admin() || Init::is_visual_builder_active() || is_user_logged_in() ) {
-			return;
-		}
-
 		if ( ! (bool) dpc_get_option( 'enable_download_gatekeeper', false ) ) {
 			return;
 		}
 
-		$lang  = CommentsEngine::detect_lang_code();
-		$dicts = self::get_all_dictionaries();
-		$texts = $dicts[ $lang ] ?? $dicts['en'];
-
-		$auth_html = '';
-		if ( (bool) dpc_get_option( 'enable_social_auth', false ) ) {
-			$auth_html = AuthManager::get_instance()->render_auth_box( 'shortcode' );
-		}
-
-		$request_uri = isset( $_SERVER['REQUEST_URI'] )
-			? sanitize_text_field( wp_unslash( (string) $_SERVER['REQUEST_URI'] ) )
-			: '/';
-		$login_url   = wp_login_url( home_url( $request_uri ) );
-		?>
-		<div id="dpc-gatekeeper-modal" class="dpc-gatekeeper-modal" role="dialog" aria-modal="true" aria-labelledby="dpc-gatekeeper-title" aria-hidden="true">
-			<div class="dpc-gatekeeper-modal__overlay" data-dpc-gk-close="1"></div>
-			<div class="dpc-gatekeeper-modal__dialog">
-				<button type="button" class="dpc-gatekeeper-modal__close" data-dpc-gk-close="1" data-dpc-gk-i18n-aria="close" aria-label="<?php echo esc_attr( $texts['close'] ); ?>">
-					<span aria-hidden="true">&times;</span>
-				</button>
-				<h3 id="dpc-gatekeeper-title" class="dpc-gatekeeper-modal__title" data-dpc-gk-i18n="title"><?php echo esc_html( $texts['title'] ); ?></h3>
-				<p class="dpc-gatekeeper-modal__desc" data-dpc-gk-i18n="description"><?php echo esc_html( $texts['description'] ); ?></p>
-				<div class="dpc-gatekeeper-modal__auth">
-					<?php if ( '' !== $auth_html ) : ?>
-						<?php
-						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Output escaped inside AuthManager::render_auth_box().
-						echo $auth_html;
-						?>
-					<?php else : ?>
-						<a href="<?php echo esc_url( $login_url ); ?>" class="dpc-btn dpc-gatekeeper-login-fallback" data-dpc-gk-i18n="login_btn"><?php echo esc_html( $texts['login_btn'] ); ?></a>
-					<?php endif; ?>
-				</div>
-			</div>
-		</div>
-		<?php
+		AuthManager::get_instance()->render_auth_modal_html( 'gatekeeper' );
 	}
 }

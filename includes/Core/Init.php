@@ -104,7 +104,7 @@ final class Init {
 		);
 	}
 
-	public function enqueue_frontend_assets(): void {
+	public function enqueue_frontend_assets( bool $force = false ): void {
 		if ( self::is_visual_builder_active() ) {
 			return;
 		}
@@ -113,17 +113,27 @@ final class Init {
 		$rating_enabled              = (bool) dpc_get_option( 'enable_post_rating', false );
 		$social_auth_enabled         = (bool) dpc_get_option( 'enable_social_auth', false );
 		$download_gatekeeper_enabled = (bool) dpc_get_option( 'enable_download_gatekeeper', false );
+		$has_mini_login_shortcode    = false;
 
-		if ( ! $comments_enabled && ! $rating_enabled && ! $social_auth_enabled && ! $download_gatekeeper_enabled ) {
+		if ( ! $force && ! $comments_enabled && ! $rating_enabled && ! $social_auth_enabled && ! $download_gatekeeper_enabled ) {
+			global $post;
+			if ( $post instanceof \WP_Post && has_shortcode( $post->post_content, 'dpc_mini_login' ) ) {
+				$has_mini_login_shortcode = true;
+			}
+		}
+
+		if ( ! $force && ! $comments_enabled && ! $rating_enabled && ! $social_auth_enabled && ! $download_gatekeeper_enabled && ! $has_mini_login_shortcode ) {
 			return;
 		}
 
-		wp_enqueue_style(
-			'dpc-frontend',
-			DPC_URL . 'assets/css/frontend.css',
-			[],
-			DPC_VERSION
-		);
+		if ( ! wp_style_is( 'dpc-frontend', 'enqueued' ) ) {
+			wp_enqueue_style(
+				'dpc-frontend',
+				DPC_URL . 'assets/css/frontend.css',
+				[],
+				DPC_VERSION
+			);
+		}
 
 		if (
 			! is_user_logged_in()
@@ -145,33 +155,36 @@ final class Init {
 			);
 		}
 
-		wp_enqueue_script(
-			'dpc-frontend',
-			DPC_URL . 'assets/js/frontend.js',
-			[ 'jquery' ],
-			DPC_VERSION,
-			true
-		);
+		if ( ! wp_script_is( 'dpc-frontend', 'enqueued' ) ) {
+			wp_enqueue_script(
+				'dpc-frontend',
+				DPC_URL . 'assets/js/frontend.js',
+				[ 'jquery' ],
+				DPC_VERSION,
+				true
+			);
 
-		wp_localize_script(
-			'dpc-frontend',
-			'dpcFrontend',
-			[
-				'ajaxUrl'             => admin_url( 'admin-ajax.php' ),
-				'nonce'               => wp_create_nonce( 'dpc_frontend_nonce' ),
-				'telegramCallbackUrl' => home_url( '/wp-json/dpc/v1/auth/telegram' ),
-				'i18n'                => CommentsEngine::get_all_dictionaries(),
-			]
-		);
-
-		if ( $download_gatekeeper_enabled ) {
 			wp_localize_script(
 				'dpc-frontend',
-				'dpcConfig',
+				'dpcFrontend',
 				[
-					'gatekeeper' => DownloadGatekeeper::get_frontend_config(),
+					'ajaxUrl'             => admin_url( 'admin-ajax.php' ),
+					'nonce'               => wp_create_nonce( 'dpc_frontend_nonce' ),
+					'telegramCallbackUrl' => home_url( '/wp-json/dpc/v1/auth/telegram' ),
+					'i18n'                => CommentsEngine::get_all_dictionaries(),
+					'miniAuthI18n'        => AuthManager::get_mini_auth_dictionaries(),
 				]
 			);
+
+			if ( $download_gatekeeper_enabled ) {
+				wp_localize_script(
+					'dpc-frontend',
+					'dpcConfig',
+					[
+						'gatekeeper' => DownloadGatekeeper::get_frontend_config(),
+					]
+				);
+			}
 		}
 	}
 

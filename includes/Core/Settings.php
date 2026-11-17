@@ -510,6 +510,9 @@ final class Settings {
 					<code>[dpc_social_login]</code> — <?php echo esc_html__( 'Кнопки входа через включенные соцсети.', 'divi-pro-engagement' ); ?>
 				</li>
 				<li>
+					<code>[dpc_mini_login]</code> — <?php echo esc_html__( 'Минималистичная кнопка входа (с модалкой) или компактный бейдж пользователя для узких шапок/меню.', 'divi-pro-engagement' ); ?>
+				</li>
+				<li>
 					<code>[dpc_post_rating]</code> — <?php echo esc_html__( 'Виджет рейтинга статьи для ручного размещения в любом месте шаблона статьи.', 'divi-pro-engagement' ); ?>
 				</li>
 			</ul>

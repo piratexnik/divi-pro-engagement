@@ -1023,6 +1023,33 @@ jQuery(document).ready(function($) {
 		}
 	};
 
+	var defaultMiniAuthI18n = {
+		uk: {
+			btn_label: 'Увійти',
+			modal_title: 'Швидка авторизація',
+			modal_desc: 'Оберіть зручний спосіб входу на сайт:',
+			close: 'Закрити',
+			login_btn: 'Увійти на сайт',
+			logout: 'Вийти'
+		},
+		ru: {
+			btn_label: 'Войти',
+			modal_title: 'Быстрая авторизация',
+			modal_desc: 'Выберите удобный способ входа на сайт:',
+			close: 'Закрыть',
+			login_btn: 'Войти на сайт',
+			logout: 'Выйти'
+		},
+		en: {
+			btn_label: 'Sign in',
+			modal_title: 'Quick Sign In',
+			modal_desc: 'Choose your preferred sign-in method:',
+			close: 'Close',
+			login_btn: 'Sign In',
+			logout: 'Log out'
+		}
+	};
+
 	function getGatekeeperConfig() {
 		if (window.dpcConfig && window.dpcConfig.gatekeeper) {
 			return window.dpcConfig.gatekeeper;
@@ -1038,6 +1065,7 @@ jQuery(document).ready(function($) {
 		return document.body.classList.contains('logged-in')
 			|| document.cookie.indexOf('wordpress_logged_in_') !== -1
 			|| document.querySelector('.dpc-user-logged') !== null
+			|| document.querySelector('.dpc-mini-user') !== null
 			|| !!(gk && gk.isLoggedIn);
 	}
 
@@ -1048,12 +1076,38 @@ jQuery(document).ready(function($) {
 		return dict[lang] || dict.en || defaultGkI18n.en;
 	}
 
-	function syncGatekeeperLanguage() {
+	function getMiniAuthStrings() {
+		var dict = (window.dpcFrontend && window.dpcFrontend.miniAuthI18n) ? window.dpcFrontend.miniAuthI18n : defaultMiniAuthI18n;
+		var lang = getPageLang();
+		return dict[lang] || dict.en || defaultMiniAuthI18n.en;
+	}
+
+	function syncMiniAuthLanguage() {
+		var miniStrings = getMiniAuthStrings();
+		$('[data-dpc-mini-login-label]').text(miniStrings.btn_label);
+		$('.dpc-mini-user__logout').attr('title', miniStrings.logout).attr('aria-label', miniStrings.logout);
+	}
+
+	function syncGatekeeperLanguage(mode) {
+		syncMiniAuthLanguage();
+
 		var $modal = $('#dpc-gatekeeper-modal');
 		if (!$modal.length) {
 			return;
 		}
-		var strings = getGatekeeperStrings();
+
+		var strings;
+		if (mode === 'auth') {
+			var mini = getMiniAuthStrings();
+			strings = {
+				title: mini.modal_title,
+				description: mini.modal_desc,
+				close: mini.close,
+				login_btn: mini.login_btn
+			};
+		} else {
+			strings = getGatekeeperStrings();
+		}
 
 		$modal.find('[data-dpc-gk-i18n]').each(function() {
 			var key = $(this).attr('data-dpc-gk-i18n');
@@ -1070,13 +1124,14 @@ jQuery(document).ready(function($) {
 		});
 	}
 
-	function openGatekeeperModal() {
+	function openGatekeeperModal(mode) {
 		var $modal = $('#dpc-gatekeeper-modal');
 		if (!$modal.length) {
 			return;
 		}
-		syncGatekeeperLanguage();
-		$modal.addClass('is-open').attr('aria-hidden', 'false');
+		var modalMode = mode === 'auth' ? 'auth' : 'gatekeeper';
+		syncGatekeeperLanguage(modalMode);
+		$modal.attr('data-dpc-modal-mode', modalMode).addClass('is-open').attr('aria-hidden', 'false');
 	}
 
 	function closeGatekeeperModal(preservePending) {
@@ -1105,7 +1160,7 @@ jQuery(document).ready(function($) {
 			return false;
 		}
 
-		if (anchorEl.hasAttribute('data-dpc-gk-skip') || $(anchorEl).closest('#dpc-gatekeeper-modal, .dpc-gatekeeper-toast, .dpc-social-login, .dpc-user-logged').length > 0) {
+		if (anchorEl.hasAttribute('data-dpc-gk-skip') || $(anchorEl).closest('#dpc-gatekeeper-modal, .dpc-gatekeeper-toast, .dpc-social-login, .dpc-user-logged, .dpc-mini-user, .dpc-mini-login-btn').length > 0) {
 			return false;
 		}
 
@@ -1285,6 +1340,11 @@ jQuery(document).ready(function($) {
 		showGatekeeperToast();
 	}
 
+	$(document).on('click', '.dpc-mini-login-btn, [data-dpc-auth-trigger]', function(e) {
+		e.preventDefault();
+		openGatekeeperModal('auth');
+	});
+
 	$(document).on('click', 'a[href]', function(e) {
 		if (!isProtectedDownloadLink(this)) {
 			return;
@@ -1297,7 +1357,7 @@ jQuery(document).ready(function($) {
 		e.preventDefault();
 		setPendingDownloadUrl(this.href);
 		saveScrollRestoreState(false, this.href);
-		openGatekeeperModal();
+		openGatekeeperModal('gatekeeper');
 	});
 
 	$(document).on('click', '[data-dpc-gk-close]', function(e) {

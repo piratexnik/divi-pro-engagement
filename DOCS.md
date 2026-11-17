@@ -1,6 +1,6 @@
-# Divi Pro Engagement v2.2.1 — Техническая документация
+# Divi Pro Engagement v2.2.2 — Техническая документация
 
-Данный документ является полным техническим справочником архитектуры, API, мета-полей, шорткодов и настроек плагина `Divi Pro Engagement` (v2.2.1). Предназначен для разработчиков и ИИ-ассистентов для работы с проектом без необходимости полного сканирования кодовой базы.
+Данный документ является полным техническим справочником архитектуры, API, мета-полей, шорткодов и настроек плагина `Divi Pro Engagement` (v2.2.2). Предназначен для разработчиков и ИИ-ассистентов для работы с проектом без необходимости полного сканирования кодовой базы.
 
 ---
 
@@ -42,7 +42,7 @@ divi-pro-engagement/
     │   ├── CustomLogin.php        # DiviProEngagement\Core\CustomLogin (кастомный URL входа, 404, ограничение /wp-admin/)
     │   ├── Init.php               # DiviProEngagement\Core\Init (хуки, ассеты, dpcConfig, dpc_refresh_nonce, Mail Sender, хелперы)
     │   ├── Settings.php           # DiviProEngagement\Core\Settings (страница настроек, валидация, импорт kk Star Ratings, sync_htaccess_rules)
-    │   ├── Shortcodes.php         # DiviProEngagement\Core\Shortcodes (регистрация [dpc_social_login] и [dpc_post_rating])
+    │   ├── Shortcodes.php         # DiviProEngagement\Core\Shortcodes (регистрация [dpc_social_login], [dpc_mini_login] и [dpc_post_rating])
     │   └── Updater.php            # DiviProEngagement\Core\Updater (автообновление с GitHub через transient WordPress)
     └── Modules/
         ├── Auth/
@@ -113,7 +113,19 @@ function dpc_get_option( string $key, mixed $default = null ): mixed
 
 ---
 
-### 2.2 Шорткод `[dpc_post_rating]`
+### 2.2 Шорткод `[dpc_mini_login]`
+Минималистичный шорткод авторизации для узких верхних панелей, меню шапки (в один размер со строкой переключателя языков) и Divi Theme Builder:
+- **Для гостя:** выводит компактную кнопку-капсулу `.dpc-mini-login-btn` (`height: 1.8em; font-size: inherit;`) с SVG-иконкой и локализованным текстом (`Увійти` / `Sign in` / `Войти`). При клике открывает универсальное модальное окно авторизации с нейтральным заголовком и подзаголовком (работает даже при отключенном `Download Gatekeeper`).
+- **Для авторизованного пользователя:** выводит компактный инлайн-бейдж `.dpc-mini-user` без выпадающих меню: круглый аватар `24x24px`, имя (`max-width: 120px`, `ellipsis`) и иконку выхода `.dpc-logout-btn` в той же строке.
+
+Пример:
+```text
+[dpc_mini_login]
+```
+
+---
+
+### 2.3 Шорткод `[dpc_post_rating]`
 Выводит интерактивный блок оценки текущей записи (звезды 1–5 или Лайк / Дизлайк в зависимости от глобальной настройки `rating_type`).
 
 #### Поддерживаемые атрибуты:
@@ -129,7 +141,7 @@ function dpc_get_option( string $key, mixed $default = null ): mixed
 
 ---
 
-### 2.3 Кастомные Мета-поля (Postmeta, Commentmeta, Usermeta)
+### 2.4 Кастомные Мета-поля (Postmeta, Commentmeta, Usermeta)
 
 Плагин использует исключительно стандартные таблицы WordPress (`wp_postmeta`, `wp_commentmeta`, `wp_usermeta`) без создания дополнительных SQL-таблиц.
 

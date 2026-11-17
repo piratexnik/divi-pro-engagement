@@ -269,7 +269,7 @@ button.dpc-btn:active {
 	align-items: center;
 	vertical-align: middle;
 	margin: 8px 0;
-	z-index: 999;
+	z-index: 9999;
 }
 
 @media (max-width: 767.98px) {
@@ -315,8 +315,9 @@ button.dpc-btn:active {
 .dpc-user-dropdown {
 	position: absolute;
 	top: calc(100% + 10px);
-	left: 0;
-	z-index: 100;
+	right: 0;
+	left: auto;
+	z-index: 999999;
 	min-width: 220px;
 	padding: 12px 14px;
 	display: flex;
@@ -423,6 +424,108 @@ button.dpc-btn:active {
 	width: 18px;
 	height: 18px;
 	display: block;
+}
+
+/* ==========================================================================
+   2.1 Minimalist Inline Auth Shortcode ([dpc_mini_login])
+   ========================================================================== */
+.dpc-mini-login-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	height: 1.8em;
+	min-height: 26px;
+	max-height: 32px;
+	padding: 0 11px;
+	margin: 0;
+	font-family: inherit;
+	font-size: inherit;
+	font-weight: 500;
+	line-height: 1;
+	color: inherit;
+	background: transparent;
+	border: 1px solid currentColor;
+	border-color: rgba(148, 163, 184, 0.45);
+	border-radius: 9999px;
+	cursor: pointer;
+	white-space: nowrap;
+	vertical-align: middle;
+	box-sizing: border-box;
+	transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+}
+
+.dpc-mini-login-btn:hover {
+	background-color: rgba(148, 163, 184, 0.14);
+	border-color: currentColor;
+}
+
+.dpc-mini-login-btn__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.dpc-mini-login-btn__icon svg {
+	width: 1em;
+	height: 1em;
+	display: block;
+}
+
+.dpc-mini-login-btn__text {
+	display: inline-block;
+	line-height: 1;
+}
+
+.dpc-mini-user {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	height: 1.8em;
+	min-height: 26px;
+	vertical-align: middle;
+	font-family: inherit;
+	font-size: inherit;
+	line-height: 1;
+	box-sizing: border-box;
+}
+
+.dpc-mini-user__avatar {
+	width: 24px !important;
+	height: 24px !important;
+	border-radius: 50% !important;
+	object-fit: cover;
+	flex-shrink: 0;
+	display: block;
+}
+
+.dpc-mini-user__name {
+	font-size: 0.9em;
+	font-weight: 500;
+	max-width: 120px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	line-height: 1.2;
+}
+
+.dpc-mini-user__logout {
+	width: 24px;
+	height: 24px;
+	border-radius: 6px;
+	background: transparent;
+	color: inherit !important;
+	opacity: 0.78;
+}
+
+.dpc-mini-user__logout:hover {
+	opacity: 1;
+}
+
+.dpc-mini-user__logout svg {
+	width: 15px;
+	height: 15px;
 }
 
 /* ==========================================================================
