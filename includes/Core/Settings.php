@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace DiviProEngagement\Core;
 
+use DiviProEngagement\Modules\Downloads\DownloadGatekeeper;
 use DiviProEngagement\Modules\PostRating\RatingEngine;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -84,6 +85,10 @@ final class Settings {
 			$existing = [];
 		}
 
+		$old_dl_path = isset( $existing['dl_protected_path'] )
+			? (string) $existing['dl_protected_path']
+			: DownloadGatekeeper::DEFAULT_PATH;
+
 		$current_tab = isset( $_POST['dpc_current_tab'] )
 			? sanitize_key( wp_unslash( (string) $_POST['dpc_current_tab'] ) )
 			: 'general';
@@ -105,6 +110,18 @@ final class Settings {
 						$clean_slug = '';
 					}
 					$existing[ $field_key ] = $clean_slug;
+				} elseif ( 'dl_path' === $field_type ) {
+					$raw_path = isset( $input_data[ $field_key ] )
+						? sanitize_text_field( wp_unslash( (string) $input_data[ $field_key ] ) )
+						: '';
+					$clean_path             = DownloadGatekeeper::normalize_relative_path( $raw_path );
+					$existing[ $field_key ] = $clean_path;
+				} elseif ( 'dl_extensions' === $field_type ) {
+					$raw_exts = isset( $input_data[ $field_key ] )
+						? sanitize_text_field( wp_unslash( (string) $input_data[ $field_key ] ) )
+						: '';
+					$parsed                 = DownloadGatekeeper::parse_extensions( $raw_exts );
+					$existing[ $field_key ] = implode( ',', $parsed );
 				} elseif ( 'email' === $field_type ) {
 					$raw_email = isset( $input_data[ $field_key ] )
 						? sanitize_email( wp_unslash( (string) $input_data[ $field_key ] ) )
@@ -151,6 +168,10 @@ final class Settings {
 			}
 		}
 
+		if ( 'general' === $current_tab || 'downloads' === $current_tab ) {
+			DownloadGatekeeper::sync_htaccess_rules( $existing, $old_dl_path );
+		}
+
 		return $existing;
 	}
 
@@ -161,19 +182,20 @@ final class Settings {
 	 */
 	private function get_tab_fields_schema(): array {
 		return [
-			'general'  => [
-				'enable_social_auth'    => 'checkbox',
-				'enable_post_rating'    => 'checkbox',
-				'enable_comments'       => 'checkbox',
-				'enable_custom_login'   => 'checkbox',
-				'custom_login_slug'     => 'slug',
-				'hide_admin_bar'        => 'checkbox',
-				'mail_from_name'        => 'text',
-				'mail_from_email'       => 'email',
-				'disable_divi_projects' => 'checkbox',
-				'github_token'          => 'text',
+			'general'   => [
+				'enable_social_auth'         => 'checkbox',
+				'enable_post_rating'         => 'checkbox',
+				'enable_comments'            => 'checkbox',
+				'enable_download_gatekeeper' => 'checkbox',
+				'enable_custom_login'        => 'checkbox',
+				'custom_login_slug'          => 'slug',
+				'hide_admin_bar'             => 'checkbox',
+				'mail_from_name'             => 'text',
+				'mail_from_email'            => 'email',
+				'disable_divi_projects'      => 'checkbox',
+				'github_token'               => 'text',
 			],
-			'auth'     => [
+			'auth'      => [
 				'auth_show_in_comments'        => 'checkbox',
 				'auth_select_account'          => 'checkbox',
 				'auth_auto_link_email'         => 'checkbox',
@@ -203,13 +225,13 @@ final class Settings {
 				'auth_twitter_client_id'       => 'text',
 				'auth_twitter_client_secret'   => 'text',
 			],
-			'rating'   => [
+			'rating'    => [
 				'rating_type'          => 'text',
 				'rating_access'        => 'text',
 				'rating_position'      => 'text',
 				'rating_schema_enable' => 'checkbox',
 			],
-			'comments' => [
+			'comments'  => [
 				'comments_skin'             => 'text',
 				'comments_form_position'    => 'text',
 				'comments_custom_font_size' => 'css_font_size',
@@ -222,6 +244,12 @@ final class Settings {
 				'antispam_turnstile_enable' => 'checkbox',
 				'turnstile_site_key'        => 'text',
 				'turnstile_secret_key'      => 'text',
+			],
+			'downloads' => [
+				'dl_protected_path'        => 'dl_path',
+				'dl_extensions'            => 'dl_extensions',
+				'dl_intercept_all_uploads' => 'checkbox',
+				'dl_htaccess_enable'       => 'checkbox',
 			],
 		];
 	}
@@ -249,16 +277,17 @@ final class Settings {
 		}
 
 		$current_tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( (string) $_GET['tab'] ) ) : 'general';
-		$valid_tabs  = [ 'general', 'auth', 'rating', 'comments' ];
+		$valid_tabs  = [ 'general', 'auth', 'rating', 'comments', 'downloads' ];
 		if ( ! in_array( $current_tab, $valid_tabs, true ) ) {
 			$current_tab = 'general';
 		}
 
 		$tabs = [
-			'general'  => esc_html__( 'Основные модули', 'divi-pro-engagement' ),
-			'auth'     => esc_html__( 'Соц. Авторизация', 'divi-pro-engagement' ),
-			'rating'   => esc_html__( 'Рейтинг статей', 'divi-pro-engagement' ),
-			'comments' => esc_html__( 'Комментарии и Антиспам', 'divi-pro-engagement' ),
+			'general'   => esc_html__( 'Основные модули', 'divi-pro-engagement' ),
+			'auth'      => esc_html__( 'Соц. Авторизация', 'divi-pro-engagement' ),
+			'rating'    => esc_html__( 'Рейтинг статей', 'divi-pro-engagement' ),
+			'comments'  => esc_html__( 'Комментарии и Антиспам', 'divi-pro-engagement' ),
+			'downloads' => esc_html__( 'Защита файлов', 'divi-pro-engagement' ),
 		];
 
 		$this->render_admin_styles();
@@ -294,6 +323,9 @@ final class Settings {
 					case 'comments':
 						$this->render_comments_tab();
 						break;
+					case 'downloads':
+						$this->render_downloads_tab();
+						break;
 					case 'general':
 					default:
 						$this->render_general_tab();
@@ -308,16 +340,17 @@ final class Settings {
 	}
 
 	private function render_general_tab(): void {
-		$enable_social_auth    = (int) dpc_get_option( 'enable_social_auth', 0 );
-		$enable_post_rating    = (int) dpc_get_option( 'enable_post_rating', 0 );
-		$enable_comments       = (int) dpc_get_option( 'enable_comments', 0 );
-		$enable_custom_login   = (int) dpc_get_option( 'enable_custom_login', 0 );
-		$custom_login_slug     = (string) dpc_get_option( 'custom_login_slug', '' );
-		$hide_admin_bar        = (int) dpc_get_option( 'hide_admin_bar', 0 );
-		$mail_from_name        = (string) dpc_get_option( 'mail_from_name', '' );
-		$mail_from_email       = (string) dpc_get_option( 'mail_from_email', '' );
-		$disable_divi_projects = (int) dpc_get_option( 'disable_divi_projects', 0 );
-		$github_token          = (string) dpc_get_option( 'github_token', '' );
+		$enable_social_auth         = (int) dpc_get_option( 'enable_social_auth', 0 );
+		$enable_post_rating         = (int) dpc_get_option( 'enable_post_rating', 0 );
+		$enable_comments            = (int) dpc_get_option( 'enable_comments', 0 );
+		$enable_download_gatekeeper = (int) dpc_get_option( 'enable_download_gatekeeper', 0 );
+		$enable_custom_login        = (int) dpc_get_option( 'enable_custom_login', 0 );
+		$custom_login_slug          = (string) dpc_get_option( 'custom_login_slug', '' );
+		$hide_admin_bar             = (int) dpc_get_option( 'hide_admin_bar', 0 );
+		$mail_from_name             = (string) dpc_get_option( 'mail_from_name', '' );
+		$mail_from_email            = (string) dpc_get_option( 'mail_from_email', '' );
+		$disable_divi_projects      = (int) dpc_get_option( 'disable_divi_projects', 0 );
+		$github_token               = (string) dpc_get_option( 'github_token', '' );
 		?>
 		<div class="dpc-card">
 			<h2><?php echo esc_html__( 'Управление модулями', 'divi-pro-engagement' ); ?></h2>
@@ -350,6 +383,16 @@ final class Settings {
 				</div>
 				<div class="dpc-field-input">
 					<?php $this->render_toggle( 'enable_comments', $enable_comments ); ?>
+				</div>
+			</div>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Защита скачивания файлов (Download Gatekeeper)', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Доступ к файлам и документации только после авторизации.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'enable_download_gatekeeper', $enable_download_gatekeeper ); ?>
 				</div>
 			</div>
 		</div>
@@ -958,6 +1001,96 @@ final class Settings {
 				<label for="turnstile_secret_key">Turnstile Secret Key</label>
 				<input type="password" id="turnstile_secret_key" name="dpc_settings[turnstile_secret_key]" value="<?php echo esc_attr( $turnstile_secret_key ); ?>" class="regular-text">
 			</div>
+		</div>
+		<?php
+	}
+
+	private function render_downloads_tab(): void {
+		$dl_protected_path        = (string) dpc_get_option( 'dl_protected_path', DownloadGatekeeper::DEFAULT_PATH );
+		$dl_extensions            = (string) dpc_get_option( 'dl_extensions', DownloadGatekeeper::DEFAULT_EXTENSIONS );
+		$dl_intercept_all_uploads = (int) dpc_get_option( 'dl_intercept_all_uploads', 0 );
+		$dl_htaccess_enable       = (int) dpc_get_option( 'dl_htaccess_enable', 0 );
+
+		$uploads      = wp_upload_dir();
+		$basedir      = isset( $uploads['basedir'] ) ? wp_normalize_path( (string) $uploads['basedir'] ) : '';
+		$clean_rel    = DownloadGatekeeper::normalize_relative_path( $dl_protected_path );
+		$target_dir   = '' !== $clean_rel && '' !== $basedir ? trailingslashit( $basedir ) . $clean_rel : '';
+		$dir_exists   = '' !== $target_dir && is_dir( $target_dir );
+		$htaccess     = $dir_exists ? trailingslashit( $target_dir ) . '.htaccess' : '';
+		$has_htaccess = '' !== $htaccess && file_exists( $htaccess ) && str_contains( (string) file_get_contents( $htaccess ), '# BEGIN DPC Download Gatekeeper' );
+		?>
+		<div class="dpc-card">
+			<h2><?php echo esc_html__( 'Настройки Download Gatekeeper', 'divi-pro-engagement' ); ?></h2>
+			<p class="dpc-card-subtitle"><?php echo esc_html__( 'Ограничение скачивания документации и архивов для неавторизованных посетителей с автоматическим возвратом и запуском загрузки после входа.', 'divi-pro-engagement' ); ?></p>
+
+			<div class="dpc-input-row">
+				<label for="dl_protected_path"><strong><?php echo esc_html__( 'Путь к защищаемой папке внутри /wp-content/uploads/', 'divi-pro-engagement' ); ?></strong></label>
+				<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+					<code>/wp-content/uploads/</code>
+					<input
+						type="text"
+						id="dl_protected_path"
+						name="dpc_settings[dl_protected_path]"
+						placeholder="<?php echo esc_attr( DownloadGatekeeper::DEFAULT_PATH ); ?>"
+						value="<?php echo esc_attr( $dl_protected_path ); ?>"
+						class="regular-text"
+						style="max-width: 340px;"
+					/>
+				</div>
+				<span class="description" style="color:#64748b;"><?php echo esc_html__( 'Относительный путь без начального и конечного слеша. По умолчанию: joomla-legacy/dmdocuments', 'divi-pro-engagement' ); ?></span>
+			</div>
+
+			<div class="dpc-input-row" style="margin-bottom: 16px;">
+				<label for="dl_extensions"><strong><?php echo esc_html__( 'Защищаемые расширения файлов (через запятую)', 'divi-pro-engagement' ); ?></strong></label>
+				<input
+					type="text"
+					id="dl_extensions"
+					name="dpc_settings[dl_extensions]"
+					placeholder="<?php echo esc_attr( DownloadGatekeeper::DEFAULT_EXTENSIONS ); ?>"
+					value="<?php echo esc_attr( $dl_extensions ); ?>"
+					class="regular-text"
+				/>
+				<span class="description" style="color:#64748b;"><?php echo esc_html__( 'Например: pdf,rar,zip,dwg,dxf,doc,docx,xls,xlsx', 'divi-pro-engagement' ); ?></span>
+			</div>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Перехватывать указанные расширения во всей папке /wp-content/uploads/', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Перехватывать клики по документам во всех каталогах uploads (а не только в защищаемой папке). Обычные изображения (.jpg, .png и др.) в статьях не затрагиваются.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'dl_intercept_all_uploads', $dl_intercept_all_uploads ); ?>
+				</div>
+			</div>
+
+			<div class="dpc-field-row">
+				<div class="dpc-field-label">
+					<strong><?php echo esc_html__( 'Включить серверную защиту от ботов и прямого скачивания через .htaccess в защищаемой папке', 'divi-pro-engagement' ); ?></strong>
+					<span><?php echo esc_html__( 'Автоматически управляет блоком правил Apache (# BEGIN DPC Download Gatekeeper) с запретом индексации и прямых GET-запросов без cookie авторизации WordPress.', 'divi-pro-engagement' ); ?></span>
+				</div>
+				<div class="dpc-field-input">
+					<?php $this->render_toggle( 'dl_htaccess_enable', $dl_htaccess_enable ); ?>
+				</div>
+			</div>
+		</div>
+
+		<div class="dpc-card dpc-info-card">
+			<h3><?php echo esc_html__( 'Статус защищаемой директории', 'divi-pro-engagement' ); ?></h3>
+			<?php if ( '' === $clean_rel ) : ?>
+				<p><?php echo esc_html__( 'Укажите корректный путь к защищаемой папке (без ".." и абсолютных путей).', 'divi-pro-engagement' ); ?></p>
+			<?php else : ?>
+				<ul class="dpc-shortcode-list" style="margin-left: 18px;">
+					<li>
+						<strong><?php echo esc_html__( 'Целевой каталог:', 'divi-pro-engagement' ); ?></strong>
+						<code><?php echo esc_html( $target_dir ); ?></code>
+						<?php echo $dir_exists ? '— <span style="color:#059669;font-weight:600;">' . esc_html__( 'найден', 'divi-pro-engagement' ) . '</span>' : '— <span style="color:#d97706;font-weight:600;">' . esc_html__( 'папка пока не существует на сервере', 'divi-pro-engagement' ) . '</span>'; ?>
+					</li>
+					<li>
+						<strong><?php echo esc_html__( 'Серверная защита .htaccess:', 'divi-pro-engagement' ); ?></strong>
+						<?php echo $has_htaccess ? '<span style="color:#059669;font-weight:600;">' . esc_html__( 'Активна (правила записаны)', 'divi-pro-engagement' ) . '</span>' : '<span style="color:#64748b;">' . esc_html__( 'Не активна', 'divi-pro-engagement' ) . '</span>'; ?>
+					</li>
+				</ul>
+			<?php endif; ?>
 		</div>
 		<?php
 	}

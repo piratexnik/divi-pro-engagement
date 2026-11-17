@@ -1300,3 +1300,228 @@ button.dpc-btn:active {
 		left: 16px !important;
 	}
 }
+
+/* ==========================================================================
+   6. Download Gatekeeper Modal, Highlight & Toast
+   ========================================================================== */
+.dpc-gatekeeper-modal {
+	position: fixed !important;
+	inset: 0 !important;
+	z-index: 999999 !important;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	transition: opacity 0.24s ease, visibility 0.24s ease;
+	box-sizing: border-box;
+	font-family: inherit;
+}
+
+.dpc-gatekeeper-modal.is-open {
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
+}
+
+.dpc-gatekeeper-modal__overlay {
+	position: absolute;
+	inset: 0;
+	background: rgba(15, 23, 42, 0.62);
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+}
+
+.dpc-gatekeeper-modal__dialog {
+	position: relative;
+	z-index: 1;
+	width: 100%;
+	max-width: 460px;
+	padding: 28px 26px 24px;
+	background: #ffffff;
+	color: #0f172a;
+	border: 1px solid #e2e8f0;
+	border-radius: 16px;
+	box-shadow: 0 24px 48px rgba(15, 23, 42, 0.24);
+	transform: translateY(10px) scale(0.97);
+	transition: transform 0.24s ease;
+	box-sizing: border-box;
+	text-align: center;
+}
+
+.dpc-gatekeeper-modal.is-open .dpc-gatekeeper-modal__dialog {
+	transform: translateY(0) scale(1);
+}
+
+.dpc-gatekeeper-modal__close {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	background: #f1f5f9;
+	color: #64748b !important;
+	border: none;
+	border-radius: 50%;
+	font-size: 20px;
+	line-height: 1;
+	cursor: pointer;
+	transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.dpc-gatekeeper-modal__close:hover {
+	background: #e2e8f0;
+	color: #0f172a !important;
+}
+
+.dpc-gatekeeper-modal__title {
+	margin: 0 0 10px;
+	padding: 0 24px;
+	font-size: 19px;
+	font-weight: 700;
+	line-height: 1.35;
+	color: #0f172a;
+}
+
+.dpc-gatekeeper-modal__desc {
+	margin: 0 0 18px;
+	font-size: 14.5px;
+	line-height: 1.55;
+	color: #475569;
+}
+
+.dpc-gatekeeper-modal__auth .dpc-social-login {
+	margin: 0;
+}
+
+.dpc-gatekeeper-modal__auth .dpc-social-login__buttons {
+	justify-content: center;
+}
+
+.dpc-gatekeeper-login-fallback {
+	background: #2563eb;
+	color: #ffffff !important;
+	border: 1px solid #2563eb;
+}
+
+.dpc-gatekeeper-login-fallback:hover {
+	background: #1d4ed8;
+	border-color: #1d4ed8;
+	color: #ffffff !important;
+}
+
+@keyframes dpc-download-pulse {
+	0% {
+		box-shadow: 0 0 0 2px #10b981, 0 0 0 0 rgba(16, 185, 129, 0.55);
+	}
+	70% {
+		box-shadow: 0 0 0 2px #10b981, 0 0 0 10px rgba(16, 185, 129, 0);
+	}
+	100% {
+		box-shadow: 0 0 0 2px #10b981, 0 0 0 0 rgba(16, 185, 129, 0);
+	}
+}
+
+.dpc-download-ready {
+	outline: 2px solid #10b981 !important;
+	outline-offset: 2px;
+	border-radius: 6px;
+	background-color: rgba(16, 185, 129, 0.08);
+	animation: dpc-download-pulse 1.5s ease-in-out 4;
+	box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35);
+}
+
+.dpc-gatekeeper-toast {
+	position: fixed !important;
+	right: 24px !important;
+	bottom: 24px !important;
+	z-index: 999999 !important;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	max-width: 420px;
+	padding: 12px 14px 12px 16px;
+	background: #0f172a;
+	color: #f8fafc;
+	border: 1px solid #10b981;
+	border-radius: 12px;
+	box-shadow: 0 12px 32px rgba(15, 23, 42, 0.32);
+	opacity: 0;
+	transform: translateY(14px);
+	transition: opacity 0.25s ease, transform 0.25s ease;
+	box-sizing: border-box;
+	font-family: inherit;
+}
+
+.dpc-gatekeeper-toast.is-visible {
+	opacity: 1;
+	transform: translateY(0);
+}
+
+.dpc-gatekeeper-toast__content {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px;
+	font-size: 13.5px;
+	line-height: 1.4;
+}
+
+.dpc-gatekeeper-toast__btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 6px 12px;
+	background: #10b981;
+	color: #ffffff !important;
+	border-radius: 8px;
+	font-size: 13px;
+	font-weight: 600;
+	text-decoration: none !important;
+	white-space: nowrap;
+	transition: background-color 0.18s ease;
+}
+
+.dpc-gatekeeper-toast__btn:hover {
+	background: #059669;
+	color: #ffffff !important;
+}
+
+.dpc-gatekeeper-toast__close {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	background: transparent;
+	color: #94a3b8 !important;
+	border: none;
+	font-size: 18px;
+	line-height: 1;
+	cursor: pointer;
+	flex-shrink: 0;
+}
+
+.dpc-gatekeeper-toast__close:hover {
+	color: #ffffff !important;
+}
+
+@media (max-width: 639.98px) {
+	.dpc-gatekeeper-modal__dialog {
+		padding: 24px 18px 20px;
+	}
+	.dpc-gatekeeper-toast {
+		left: 16px !important;
+		right: 16px !important;
+		bottom: 16px !important;
+		max-width: none;
+	}
+}
+

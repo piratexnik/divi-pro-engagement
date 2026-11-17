@@ -1,6 +1,6 @@
-# Divi Pro Engagement v2.1.4 — Техническая документация
+# Divi Pro Engagement v2.2.0 — Техническая документация
 
-Данный документ является полным техническим справочником архитектуры, API, мета-полей, шорткодов и настроек плагина `Divi Pro Engagement` (v2.1.4). Предназначен для разработчиков и ИИ-ассистентов для работы с проектом без необходимости полного сканирования кодовой базы.
+Данный документ является полным техническим справочником архитектуры, API, мета-полей, шорткодов и настроек плагина `Divi Pro Engagement` (v2.2.0). Предназначен для разработчиков и ИИ-ассистентов для работы с проектом без необходимости полного сканирования кодовой базы.
 
 ---
 
@@ -17,6 +17,7 @@
 5. **WPS Hide Login** — заменен на модуль `CustomLogin` (маршрутизация нестандартного URL авторизации, блокировка прямого доступа к `wp-login.php` и 404-ответ для гостей, отключение админ-бара и `/wp-admin/` для подписчиков).
 6. **Change Mail Sender** — заменен на системные фильтры `wp_mail_from` / `wp_mail_from_name` (приоритет 99) для кастомизации имени и адреса отправителя системных писем.
 7. **Отключение CPT "Projects" темы Divi** — выгрузка неиспользуемого типа записей `project` из админ-меню и запросов WordPress.
+8. **Download Gatekeeper** — защита скачивания документации, PDF-каталогов, архивов и чертежей AutoCAD с перехватом кликов, серверной блокировкой `.htaccess`, мультиязычной модалкой авторизации и авто-возобновлением скачивания после входа.
 
 ---
 
@@ -32,15 +33,15 @@ divi-pro-engagement/
 ├── assets/
 │   ├── css/
 │   │   ├── admin.css              # Стили панели настроек плагина в wp-admin
-│   │   └── frontend.css           # Критические фронтенд-стили (кнопки соцсетей, рейтинг, комментарии, темная/светлая тема)
+│   │   └── frontend.css           # Критические фронтенд-стили (кнопки соцсетей, рейтинг, комментарии, модалка Gatekeeper)
 │   └── js/
 │       ├── admin.js               # Скрипты админ-панели (переключение табов, валидация)
-│       └── frontend.js            # Клиентская логика (AJAX, syncClientVotes, авто-обновление nonce, Telegram on-demand)
+│       └── frontend.js            # Клиентская логика (AJAX, syncClientVotes, авто-обновление nonce, Telegram, Download Gatekeeper)
 └── includes/
     ├── Core/
     │   ├── CustomLogin.php        # DiviProEngagement\Core\CustomLogin (кастомный URL входа, 404, ограничение /wp-admin/)
-    │   ├── Init.php               # DiviProEngagement\Core\Init (хуки, ассеты, dpc_refresh_nonce, Mail Sender, откл. CPT project, хелперы)
-    │   ├── Settings.php           # DiviProEngagement\Core\Settings (страница настроек, валидация, импорт kk Star Ratings)
+    │   ├── Init.php               # DiviProEngagement\Core\Init (хуки, ассеты, dpcConfig, dpc_refresh_nonce, Mail Sender, хелперы)
+    │   ├── Settings.php           # DiviProEngagement\Core\Settings (страница настроек, валидация, импорт kk Star Ratings, sync_htaccess_rules)
     │   ├── Shortcodes.php         # DiviProEngagement\Core\Shortcodes (регистрация [dpc_social_login] и [dpc_post_rating])
     │   └── Updater.php            # DiviProEngagement\Core\Updater (автообновление с GitHub через transient WordPress)
     └── Modules/
@@ -55,6 +56,8 @@ divi-pro-engagement/
         ├── Comments/
         │   ├── CommentsEngine.php        # DiviProEngagement\Modules\Comments\CommentsEngine (AJAX комментарии, N+1 оптимизация)
         │   └── comments-template.php     # Переопределенный шаблон комментариев (совместим с иерархией Divi 5)
+        ├── Downloads/
+        │   └── DownloadGatekeeper.php    # DiviProEngagement\Modules\Downloads\DownloadGatekeeper (защита файлов, .htaccess, модалка)
         └── PostRating/
             └── RatingEngine.php          # DiviProEngagement\Modules\PostRating\RatingEngine (звезды/лайки, Schema.org)
 ```
@@ -211,6 +214,7 @@ $args = [
 | `enable_social_auth` | `bool` | `0` (выключено) | Включение модуля OAuth авторизации через соцсети. |
 | `enable_post_rating` | `bool` | `0` (выключено) | Включение модуля голосования за записи (звезды/лайки). |
 | `enable_comments` | `bool` | `0` (выключено) | Активация кастомного AJAX-шаблона комментариев и древовидных ответов. |
+| `enable_download_gatekeeper` | `bool` | `0` (выключено) | Включение модуля защиты скачивания файлов и документации (Download Gatekeeper). |
 | `enable_custom_login` | `bool` | `0` (выключено) | Включение защиты и подмены URL страницы авторизации `wp-login.php`. |
 | `custom_login_slug` | `string` | `''` | Слаг кастомного адреса входа (например: `secret-gate`). |
 | `hide_admin_bar` | `bool` | `0` (выключено) | Скрытие панели Admin Bar и блокировка `/wp-admin/` для роли `subscriber`. |
@@ -274,6 +278,14 @@ $args = [
 | `antispam_turnstile_enable`| `bool` | `0` (выключено) | Проверка невидимой капчи Cloudflare Turnstile для гостей. |
 | `turnstile_site_key` | `string` | `''` | Открытый Site Key Cloudflare Turnstile. |
 | `turnstile_secret_key` | `string` | `''` | Секретный Secret Key Cloudflare Turnstile (для серверной проверки `siteverify`). |
+
+### Вкладка 5: Защита файлов (`downloads`)
+| Ключ опции | Тип | Значение по умолчанию | Описание |
+| :--- | :--- | :--- | :--- |
+| `dl_protected_path` | `string` | `'joomla-legacy/dmdocuments'` | Относительный путь к защищаемой папке внутри `/wp-content/uploads/`. Валидируется через `validate_file()`. |
+| `dl_extensions` | `string` | `'pdf,rar,zip,dwg,dxf,doc,docx,xls,xlsx'` | Список защищаемых расширений файлов через запятую. |
+| `dl_intercept_all_uploads` | `bool` | `0` (выключено) | Перехват указанных расширений во всей папке `/wp-content/uploads/` (кроме обычных изображений `.jpg/.png/.webp/...` вне `/dmdocuments/`). |
+| `dl_htaccess_enable` | `bool` | `0` (выключено) | Серверная защита от ботов и прямого скачивания через `.htaccess` (`Options -Indexes`, `X-Robots-Tag`, `RewriteRule` по cookie `wordpress_logged_in_`). |
 
 ---
 
@@ -415,3 +427,20 @@ $args = [
    - Метод `get_installed_version` считывает заголовок из первых 8 КБ локального файла `divi-pro-engagement.php`, минуя статический кеш в памяти.
    - Фильтр `site_transient_update_plugins` переносит плагин из `response` в `no_update`, если удаленная версия не превышает локальную, убирая бейдж обновления сразу после завершения инсталляции.
    - Фильтр `upgrader_source_selection` (`fix_source_folder`) нормализует имя распакованного каталога GitHub-архива к стандарту `divi-pro-engagement`.
+
+---
+
+### 4.6 Защита скачивания файлов (`DiviProEngagement\Modules\Downloads\DownloadGatekeeper`)
+1. **Серверная защита от ботов и прямого скачивания (`.htaccess`):**
+   - Метод `DownloadGatekeeper::sync_htaccess_rules()` вызывается при сохранении настроек на вкладках `general` и `downloads`.
+   - При активных `enable_download_gatekeeper` и `dl_htaccess_enable` и существовании директории внутри `wp_upload_dir()['basedir']` (с проверкой отсутствия `..` через `validate_file()` и `realpath()`) создается или обновляется блок `# BEGIN DPC Download Gatekeeper ... # END DPC Download Gatekeeper` с директивами `Options -Indexes`, `X-Robots-Tag "noindex, nofollow, noarchive"` и `RewriteRule` по cookie `wordpress_logged_in_` для расширений `dl_extensions`.
+   - При отключении одного из тумблеров или изменении пути маркерный блок аккуратно удаляется (пустой `.htaccess` удаляется автоматически).
+2. **Подключение ассетов и конфигурация (`dpcConfig.gatekeeper`):**
+   - При включении модуля `Init::enqueue_frontend_assets()` гарантированно подключает `frontend.css` и `frontend.js` на фронтенде (исключая режим конструктора Divi `Init::is_visual_builder_active()`), передавая через `wp_localize_script` объект `dpcConfig.gatekeeper` (`enabled`, `protectedPath`, `extensions`, `interceptAllUploads`, `uploadsUrl`, `isLoggedIn`, `i18n`).
+3. **Кеш-совместимый перехват кликов и авторизационная модалка:**
+   - Метод `render_modal_html()` выводит в `wp_footer` модальное окно `.dpc-gatekeeper-modal` с мультиязычными текстами (`uk` / `ru` / `en`, синхронизируются на клиенте по `<html lang="...">`) и кнопками входа через `AuthManager::get_instance()->render_auth_box('shortcode')` (или fallback-ссылкой `wp_login_url()`).
+   - JS-функция `isUserLoggedIn()` определяет статус авторизации на кешируемых страницах FlyingPress (`body.logged-in`, cookie `wordpress_logged_in_`, наличие `.dpc-user-logged` или `dpcConfig.gatekeeper.isLoggedIn`).
+   - Делегированный обработчик `a[href]` перехватывает клики гостей по ссылкам внутри `/{dl_protected_path}/` (или по защищаемым расширениям во всем `/wp-content/uploads/` при `dl_intercept_all_uploads`, исключая изображения `.jpg/.png/.webp/...` вне `/dmdocuments/`).
+4. **Авто-возобновление скачивания и интеграция с `dpc_scroll_restore`:**
+   - URL файла сохраняется в `sessionStorage` (`dpc_pending_download_url`) и интегрируется в объект `dpc_scroll_restore`.
+   - После возврата авторизованного пользователя `restoreScrollPosition()` восстанавливает высоту скролла, а `processPendingDownload()` очищает `dpc_pending_download_url`, подсвечивает ссылку на странице пульсирующей зеленой рамкой (`.dpc-download-ready`), инициирует загрузку через временную ссылку с `download` и отображает тост `.dpc-gatekeeper-toast` с кнопкой прямого скачивания.

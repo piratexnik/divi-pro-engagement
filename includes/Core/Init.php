@@ -5,6 +5,7 @@ namespace DiviProEngagement\Core;
 
 use DiviProEngagement\Modules\Auth\AuthManager;
 use DiviProEngagement\Modules\Comments\CommentsEngine;
+use DiviProEngagement\Modules\Downloads\DownloadGatekeeper;
 use DiviProEngagement\Modules\PostRating\RatingEngine;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -38,9 +39,10 @@ final class Init {
 		add_action( 'wp_ajax_dpc_refresh_nonce', [ $this, 'handle_ajax_refresh_nonce' ] );
 		add_action( 'wp_ajax_nopriv_dpc_refresh_nonce', [ $this, 'handle_ajax_refresh_nonce' ] );
 
-		$comments_enabled    = (bool) dpc_get_option( 'enable_comments', false );
-		$rating_enabled      = (bool) dpc_get_option( 'enable_post_rating', false );
-		$social_auth_enabled = (bool) dpc_get_option( 'enable_social_auth', false );
+		$comments_enabled            = (bool) dpc_get_option( 'enable_comments', false );
+		$rating_enabled              = (bool) dpc_get_option( 'enable_post_rating', false );
+		$social_auth_enabled         = (bool) dpc_get_option( 'enable_social_auth', false );
+		$download_gatekeeper_enabled = (bool) dpc_get_option( 'enable_download_gatekeeper', false );
 
 		if ( $comments_enabled || $social_auth_enabled ) {
 			AuthManager::get_instance()->register_avatar_filters();
@@ -65,6 +67,11 @@ final class Init {
 				add_action( 'comment_form_must_log_in_after', [ $this, 'render_comment_form_social_login' ] );
 				add_filter( 'comment_form_defaults', [ $this, 'filter_comment_form_logged_in_as' ] );
 			}
+		}
+
+		// Module 4: Download Gatekeeper (Auth-gated file downloads & .htaccess rules)
+		if ( $download_gatekeeper_enabled ) {
+			DownloadGatekeeper::get_instance();
 		}
 
 		// System Utility: Mail Sender
@@ -102,11 +109,12 @@ final class Init {
 			return;
 		}
 
-		$comments_enabled    = (bool) dpc_get_option( 'enable_comments', false );
-		$rating_enabled      = (bool) dpc_get_option( 'enable_post_rating', false );
-		$social_auth_enabled = (bool) dpc_get_option( 'enable_social_auth', false );
+		$comments_enabled            = (bool) dpc_get_option( 'enable_comments', false );
+		$rating_enabled              = (bool) dpc_get_option( 'enable_post_rating', false );
+		$social_auth_enabled         = (bool) dpc_get_option( 'enable_social_auth', false );
+		$download_gatekeeper_enabled = (bool) dpc_get_option( 'enable_download_gatekeeper', false );
 
-		if ( ! $comments_enabled && ! $rating_enabled && ! $social_auth_enabled ) {
+		if ( ! $comments_enabled && ! $rating_enabled && ! $social_auth_enabled && ! $download_gatekeeper_enabled ) {
 			return;
 		}
 
@@ -155,6 +163,16 @@ final class Init {
 				'i18n'                => CommentsEngine::get_all_dictionaries(),
 			]
 		);
+
+		if ( $download_gatekeeper_enabled ) {
+			wp_localize_script(
+				'dpc-frontend',
+				'dpcConfig',
+				[
+					'gatekeeper' => DownloadGatekeeper::get_frontend_config(),
+				]
+			);
+		}
 	}
 
 	public function render_comment_form_social_login(): void {

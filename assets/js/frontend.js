@@ -300,13 +300,38 @@ jQuery(document).ready(function($) {
 		}
 	}
 
-	function saveScrollRestoreState(inComments) {
+	function getPendingDownloadUrl() {
 		try {
 			if (window.sessionStorage) {
+				return window.sessionStorage.getItem('dpc_pending_download_url') || '';
+			}
+		} catch (e) {}
+		return '';
+	}
+
+	function setPendingDownloadUrl(url) {
+		try {
+			if (window.sessionStorage) {
+				if (url) {
+					window.sessionStorage.setItem('dpc_pending_download_url', url);
+				} else {
+					window.sessionStorage.removeItem('dpc_pending_download_url');
+				}
+			}
+		} catch (e) {}
+	}
+
+	function saveScrollRestoreState(inComments, pendingUrlOverride) {
+		try {
+			if (window.sessionStorage) {
+				var pendingUrl = typeof pendingUrlOverride === 'string'
+					? pendingUrlOverride
+					: getPendingDownloadUrl();
 				var state = {
 					path: window.location.pathname + window.location.search,
 					scrollY: Math.round(window.scrollY || window.pageYOffset || 0),
 					inComments: !!inComments,
+					pendingDownloadUrl: pendingUrl,
 					timestamp: Date.now()
 				};
 				window.sessionStorage.setItem('dpc_scroll_restore', JSON.stringify(state));
@@ -324,27 +349,27 @@ jQuery(document).ready(function($) {
 		} catch (e) {}
 
 		if (!rawData) {
-			return;
+			return null;
 		}
 
 		var data = null;
 		try {
 			data = JSON.parse(rawData);
 		} catch (e) {
-			return;
+			return null;
 		}
 
 		if (!data || typeof data.scrollY !== 'number' || !data.path || !data.timestamp) {
-			return;
+			return null;
 		}
 
 		var currentPath = window.location.pathname + window.location.search;
 		if (data.path !== currentPath) {
-			return;
+			return null;
 		}
 
 		if (Date.now() - data.timestamp >= 300000) {
-			return;
+			return null;
 		}
 
 		var targetY = data.scrollY;
@@ -362,9 +387,9 @@ jQuery(document).ready(function($) {
 
 			if (data.inComments === true) {
 				var $textarea = $('#dpc-comment-textarea');
-				var isUserLoggedIn = $('.dpc-user-logged').length > 0 || $('.dpc-author-input').length === 0;
+				var userLoggedIn = $('.dpc-user-logged').length > 0 || $('.dpc-author-input').length === 0;
 
-				if ($textarea.length && isUserLoggedIn && $textarea[0]) {
+				if ($textarea.length && userLoggedIn && $textarea[0]) {
 					try {
 						$textarea[0].focus({ preventScroll: true });
 					} catch (e) {
@@ -373,12 +398,14 @@ jQuery(document).ready(function($) {
 				}
 			}
 		}, 50);
+
+		return data;
 	}
 
-	restoreScrollPosition();
+	var restoredScrollState = restoreScrollPosition();
 
-	// Intercept click on any social auth or logout button to save scroll and refresh redirect_to
-	$(document).on('click', '.dpc-social-btn, .dpc-logout-btn', function() {
+	// Intercept click on any social auth, fallback login, or logout button to save scroll and refresh redirect_to
+	$(document).on('click', '.dpc-social-btn, .dpc-logout-btn, .dpc-gatekeeper-login-fallback', function() {
 		var $el = $(this);
 		var inComments = $el.closest('#dpc-comments, #dpc-comment-form, .dpc-comments-area').length > 0;
 		saveScrollRestoreState(inComments);
@@ -968,4 +995,288 @@ jQuery(document).ready(function($) {
 			}
 		}
 	});
+
+	// =========================================================================
+	// 7. Download Gatekeeper (Auth-Gated Downloads & Auto-Resume After Login)
+	// =========================================================================
+	var defaultGkI18n = {
+		uk: {
+			title: '🔒 Доступ лише для авторизованих користувачів',
+			description: 'Завантаження технічної документації, каталогів PDF та креслень AutoCAD доступне після швидкої авторизації. Увійдіть за кілька секунд:',
+			close: 'Закрити',
+			login_btn: 'Увійти на сайт',
+			toast_title: '✓ Авторизація успішна! Завантаження розпочинається...',
+			toast_btn: 'Завантажити файл'
+		},
+		ru: {
+			title: '🔒 Доступ только для авторизованных пользователей',
+			description: 'Скачивание технической документации, каталогов PDF и чертежей AutoCAD доступно после быстрой авторизации:',
+			close: 'Закрыть',
+			login_btn: 'Войти на сайт',
+			toast_title: '✓ Вы успешно вошли! Загрузка начинается...',
+			toast_btn: 'Скачать файл'
+		},
+		en: {
+			title: '🔒 Access for Authorized Users Only',
+			description: 'Downloading technical documentation, PDF catalogs, and AutoCAD drawings is available after quick sign-in:',
+			close: 'Close',
+			login_btn: 'Sign In',
+			toast_title: '✓ Signed in successfully! Starting download...',
+			toast_btn: 'Download file'
+		}
+	};
+
+	function getGatekeeperConfig() {
+		if (window.dpcConfig && window.dpcConfig.gatekeeper) {
+			return window.dpcConfig.gatekeeper;
+		}
+		if (window.dpcFrontend && window.dpcFrontend.gatekeeper) {
+			return window.dpcFrontend.gatekeeper;
+		}
+		return null;
+	}
+
+	function isUserLoggedIn() {
+		var gk = getGatekeeperConfig();
+		return document.body.classList.contains('logged-in')
+			|| document.cookie.indexOf('wordpress_logged_in_') !== -1
+			|| document.querySelector('.dpc-user-logged') !== null
+			|| !!(gk && gk.isLoggedIn);
+	}
+
+	function getGatekeeperStrings() {
+		var gk = getGatekeeperConfig();
+		var dict = (gk && gk.i18n) ? gk.i18n : defaultGkI18n;
+		var lang = getPageLang();
+		return dict[lang] || dict.en || defaultGkI18n.en;
+	}
+
+	function syncGatekeeperLanguage() {
+		var $modal = $('#dpc-gatekeeper-modal');
+		if (!$modal.length) {
+			return;
+		}
+		var strings = getGatekeeperStrings();
+
+		$modal.find('[data-dpc-gk-i18n]').each(function() {
+			var key = $(this).attr('data-dpc-gk-i18n');
+			if (key && strings[key]) {
+				$(this).text(strings[key]);
+			}
+		});
+
+		$modal.find('[data-dpc-gk-i18n-aria]').each(function() {
+			var key = $(this).attr('data-dpc-gk-i18n-aria');
+			if (key && strings[key]) {
+				$(this).attr('aria-label', strings[key]);
+			}
+		});
+	}
+
+	function openGatekeeperModal() {
+		var $modal = $('#dpc-gatekeeper-modal');
+		if (!$modal.length) {
+			return;
+		}
+		syncGatekeeperLanguage();
+		$modal.addClass('is-open').attr('aria-hidden', 'false');
+	}
+
+	function closeGatekeeperModal(preservePending) {
+		var $modal = $('#dpc-gatekeeper-modal');
+		if ($modal.length) {
+			$modal.removeClass('is-open').attr('aria-hidden', 'true');
+		}
+		if (!preservePending) {
+			setPendingDownloadUrl('');
+		}
+	}
+
+	function getUploadsBasePath(gk) {
+		if (gk && gk.uploadsUrl) {
+			try {
+				var parsed = new URL(gk.uploadsUrl, window.location.origin);
+				return parsed.pathname.replace(/\/+$/, '').toLowerCase();
+			} catch (e) {}
+		}
+		return '/wp-content/uploads';
+	}
+
+	function isProtectedDownloadLink(anchorEl) {
+		var gk = getGatekeeperConfig();
+		if (!gk || !gk.enabled || !anchorEl) {
+			return false;
+		}
+
+		if (anchorEl.hasAttribute('data-dpc-gk-skip') || $(anchorEl).closest('#dpc-gatekeeper-modal, .dpc-gatekeeper-toast, .dpc-social-login, .dpc-user-logged').length > 0) {
+			return false;
+		}
+
+		var rawHref = (anchorEl.getAttribute('href') || '').trim();
+		if (!rawHref || rawHref.charAt(0) === '#' || /^(javascript|mailto|tel):/i.test(rawHref)) {
+			return false;
+		}
+
+		var parsedUrl;
+		try {
+			parsedUrl = new URL(anchorEl.href, window.location.origin);
+		} catch (e) {
+			return false;
+		}
+
+		if (parsedUrl.origin !== window.location.origin) {
+			return false;
+		}
+
+		var pathname = parsedUrl.pathname || '';
+		try {
+			pathname = decodeURIComponent(pathname);
+		} catch (e) {}
+		var pathLower = pathname.toLowerCase();
+
+		var protectedPath = (gk.protectedPath || '').replace(/^\/+|\/+$/g, '').toLowerCase();
+		if (protectedPath && pathLower.indexOf('/' + protectedPath + '/') !== -1 && pathLower.slice(-1) !== '/') {
+			return true;
+		}
+
+		if (gk.interceptAllUploads) {
+			var uploadsPath = getUploadsBasePath(gk);
+			if (pathLower.indexOf(uploadsPath + '/') !== 0 || pathLower.slice(-1) === '/') {
+				return false;
+			}
+
+			var lastSegment = pathLower.split('/').pop() || '';
+			var dotIndex = lastSegment.lastIndexOf('.');
+			if (dotIndex === -1 || dotIndex === lastSegment.length - 1) {
+				return false;
+			}
+
+			var ext = lastSegment.slice(dotIndex + 1);
+			var imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif', 'ico', 'bmp'];
+			if (imageExts.indexOf(ext) !== -1 && pathLower.indexOf('/dmdocuments/') === -1) {
+				return false;
+			}
+
+			var allowedExts = Array.isArray(gk.extensions) ? gk.extensions : [];
+			if (allowedExts.indexOf(ext) !== -1) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	function showGatekeeperToast(downloadUrl) {
+		var strings = getGatekeeperStrings();
+		$('.dpc-gatekeeper-toast').remove();
+
+		var $toast = $('<div class="dpc-gatekeeper-toast" role="status" aria-live="polite"></div>');
+		var $content = $('<div class="dpc-gatekeeper-toast__content"></div>');
+		var $msg = $('<span class="dpc-gatekeeper-toast__text"></span>').text(strings.toast_title);
+		var $btn = $('<a class="dpc-gatekeeper-toast__btn" download data-dpc-gk-skip="1"></a>')
+			.attr('href', downloadUrl)
+			.text(strings.toast_btn);
+		var $close = $('<button type="button" class="dpc-gatekeeper-toast__close">&times;</button>')
+			.attr('aria-label', strings.close);
+
+		$content.append($msg).append($btn);
+		$toast.append($content).append($close);
+		$('body').append($toast);
+
+		setTimeout(function() {
+			$toast.addClass('is-visible');
+		}, 20);
+
+		var autoHideTimer = setTimeout(function() {
+			$toast.removeClass('is-visible');
+			setTimeout(function() {
+				$toast.remove();
+			}, 300);
+		}, 12000);
+
+		$close.on('click', function() {
+			clearTimeout(autoHideTimer);
+			$toast.removeClass('is-visible');
+			setTimeout(function() {
+				$toast.remove();
+			}, 300);
+		});
+	}
+
+	function processPendingDownload(restoredPendingUrl) {
+		var pendingUrl = getPendingDownloadUrl() || restoredPendingUrl || '';
+		if (!pendingUrl || !isUserLoggedIn()) {
+			return;
+		}
+
+		setPendingDownloadUrl('');
+
+		var parsedPending;
+		try {
+			parsedPending = new URL(pendingUrl, window.location.origin);
+		} catch (e) {
+			return;
+		}
+
+		if (parsedPending.origin !== window.location.origin) {
+			return;
+		}
+
+		var targetHref = parsedPending.href;
+		var targetPathSearch = parsedPending.pathname + parsedPending.search;
+
+		$('a[href]').each(function() {
+			if ($(this).closest('#dpc-gatekeeper-modal, .dpc-gatekeeper-toast').length) {
+				return;
+			}
+			try {
+				var linkParsed = new URL(this.href, window.location.origin);
+				if (linkParsed.href === targetHref || (linkParsed.origin === window.location.origin && (linkParsed.pathname + linkParsed.search) === targetPathSearch)) {
+					$(this).addClass('dpc-download-ready');
+				}
+			} catch (e) {}
+		});
+
+		try {
+			var tempLink = document.createElement('a');
+			tempLink.href = targetHref;
+			tempLink.setAttribute('download', '');
+			tempLink.setAttribute('data-dpc-gk-skip', '1');
+			tempLink.style.display = 'none';
+			document.body.appendChild(tempLink);
+			tempLink.click();
+			document.body.removeChild(tempLink);
+		} catch (e) {}
+
+		showGatekeeperToast(targetHref);
+	}
+
+	$(document).on('click', 'a[href]', function(e) {
+		if (!isProtectedDownloadLink(this)) {
+			return;
+		}
+
+		if (isUserLoggedIn()) {
+			return;
+		}
+
+		e.preventDefault();
+		setPendingDownloadUrl(this.href);
+		saveScrollRestoreState(false, this.href);
+		openGatekeeperModal();
+	});
+
+	$(document).on('click', '[data-dpc-gk-close]', function(e) {
+		e.preventDefault();
+		closeGatekeeperModal(false);
+	});
+
+	$(document).on('keydown', function(e) {
+		if (e.key === 'Escape' && $('#dpc-gatekeeper-modal').hasClass('is-open')) {
+			closeGatekeeperModal(false);
+		}
+	});
+
+	syncGatekeeperLanguage();
+	processPendingDownload(restoredScrollState && restoredScrollState.pendingDownloadUrl ? restoredScrollState.pendingDownloadUrl : '');
 });

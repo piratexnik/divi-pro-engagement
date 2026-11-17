@@ -18,6 +18,7 @@ To avoid duplicating functions, always respect this structure (`DiviProEngagemen
 - `includes/Modules/Comments/CommentsEngine.php` & `comments-template.php` -> Modern comments layout, top AJAX form (auto-approve for users, email-less moderation for guests, flood/disallowed checks), AJAX sorting, Likes/Dislikes, AntiSpam (Honeypot + Turnstile), Floating Nudge.
 - `includes/Modules/PostRating/RatingEngine.php` -> Post rating logic (Stars & Likes/Dislikes), anti-fraud circular hash buffer, AJAX handler, Schema.org JSON-LD.
 - `includes/Modules/Auth/` -> REST API OAuth endpoints, user creation, letter avatars, social providers (Google, Telegram, Discord, X/Twitter, Facebook).
+- `includes/Modules/Downloads/DownloadGatekeeper.php` -> Auth-gated file downloads, `.htaccess` bot/direct download protection, multilingual modal, and post-login auto-download integration.
 
 ## 3. VERSIONING & GITHUB RELEASE PROTOCOL (ON DEMAND ONLY)
 - **Do NOT bump the plugin version automatically** on regular code edits.
