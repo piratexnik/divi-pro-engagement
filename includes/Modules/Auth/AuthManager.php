@@ -806,14 +806,16 @@ final class AuthManager {
 			ob_start();
 			?>
 			<div class="dpc-mini-user">
-				<img class="dpc-mini-user__avatar" src="<?php echo esc_attr( $safe_avatar_src ); ?>" alt="<?php echo esc_attr( $public_name ); ?>" width="24" height="24" loading="lazy" />
-				<span class="dpc-mini-user__name"><?php echo esc_html( $public_name ); ?></span>
-				<a class="dpc-logout-btn dpc-mini-user__logout" href="<?php echo esc_url( $logout_url ); ?>" title="<?php echo esc_attr( $texts['logout'] ); ?>" aria-label="<?php echo esc_attr( $texts['logout'] ); ?>">
-					<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-						<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-						<polyline points="16 17 21 12 16 7"/>
-						<line x1="21" y1="12" x2="9" y2="12"/>
-					</svg>
+				<img class="dpc-mini-user__avatar" src="<?php echo esc_attr( $safe_avatar_src ); ?>" alt="<?php echo esc_attr( $public_name ); ?>" title="<?php echo esc_attr( $public_name ); ?>" aria-label="<?php echo esc_attr( $public_name ); ?>" width="24" height="24" loading="lazy" />
+				<a class="dpc-logout-btn dpc-mini-user__logout dpc-mini-logout-link" href="<?php echo esc_url( $logout_url ); ?>" title="<?php echo esc_attr( $texts['logout'] ); ?>" aria-label="<?php echo esc_attr( $texts['logout'] ); ?>">
+					<span class="dpc-mini-logout-link__text" data-dpc-mini-logout-label="1"><?php echo esc_html( $texts['logout'] ); ?></span>
+					<span class="dpc-mini-logout-link__icon" aria-hidden="true">
+						<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+							<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+							<polyline points="16 17 21 12 16 7"/>
+							<line x1="21" y1="12" x2="9" y2="12"/>
+						</svg>
+					</span>
 				</a>
 			</div>
 			<?php

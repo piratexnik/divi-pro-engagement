@@ -488,18 +488,12 @@ button.dpc-btn:active {
 	display: block;
 }
 
-.dpc-mini-user__name {
-	color: inherit;
-	font: inherit;
-	line-height: inherit;
-	max-width: 120px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
 .dpc-mini-user .dpc-logout-btn,
-.dpc-mini-user__logout {
+.dpc-mini-user__logout,
+.dpc-mini-logout-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
 	width: auto;
 	height: auto;
 	padding: 0;
@@ -508,20 +502,45 @@ button.dpc-btn:active {
 	border-radius: 0;
 	background: transparent !important;
 	color: inherit !important;
+	font: inherit;
+	line-height: inherit;
+	text-decoration: none !important;
+	white-space: nowrap;
+	transition: opacity 0.18s ease;
+}
+
+.dpc-mini-user .dpc-logout-btn:hover,
+.dpc-mini-user__logout:hover,
+.dpc-mini-logout-link:hover {
+	background-color: transparent !important;
+	color: inherit !important;
+	transform: none;
+}
+
+.dpc-mini-logout-link__text {
+	display: inline-block;
+	color: inherit;
+	line-height: inherit;
+}
+
+.dpc-mini-logout-link__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	color: inherit;
 	opacity: 0.75;
 	transition: opacity 0.18s ease, transform 0.15s ease;
 }
 
-.dpc-mini-user .dpc-logout-btn:hover,
-.dpc-mini-user__logout:hover {
-	background-color: transparent !important;
-	color: inherit !important;
+.dpc-mini-logout-link:hover .dpc-mini-logout-link__icon {
 	opacity: 1;
 	transform: translateX(1px);
 }
 
 .dpc-mini-user .dpc-logout-btn svg,
-.dpc-mini-user__logout svg {
+.dpc-mini-user__logout svg,
+.dpc-mini-logout-link__icon svg {
 	width: 1em;
 	height: 1em;
 	color: inherit;

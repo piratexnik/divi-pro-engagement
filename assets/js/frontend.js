@@ -1085,7 +1085,8 @@ jQuery(document).ready(function($) {
 	function syncMiniAuthLanguage() {
 		var miniStrings = getMiniAuthStrings();
 		$('[data-dpc-mini-login-label]').text(miniStrings.btn_label);
-		$('.dpc-mini-user__logout').attr('title', miniStrings.logout).attr('aria-label', miniStrings.logout);
+		$('[data-dpc-mini-logout-label]').text(miniStrings.logout);
+		$('.dpc-mini-logout-link, .dpc-mini-user__logout').attr('title', miniStrings.logout).attr('aria-label', miniStrings.logout);
 	}
 
 	function syncGatekeeperLanguage(mode) {
