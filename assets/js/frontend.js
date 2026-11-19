@@ -1341,6 +1341,54 @@ jQuery(document).ready(function($) {
 		showGatekeeperToast();
 	}
 
+	function handleGatewayRedirectParams() {
+		var gk = getGatekeeperConfig();
+		if (!gk || !gk.enabled || typeof window.URLSearchParams !== 'function') {
+			return false;
+		}
+
+		var params = new URLSearchParams(window.location.search);
+		if (params.get('dpc_auth_required') !== '1') {
+			return false;
+		}
+
+		var rawTarget = params.get('dpc_dl_target') || '';
+		var isValidTarget = rawTarget.length > 1
+			&& rawTarget.charAt(0) === '/'
+			&& rawTarget.charAt(1) !== '/'
+			&& rawTarget.indexOf('\\') === -1
+			&& !/[\r\n]/.test(rawTarget);
+
+		params.delete('dpc_auth_required');
+		params.delete('dpc_dl_target');
+
+		if (window.history && typeof window.history.replaceState === 'function') {
+			var remainingQuery = params.toString();
+			var cleanedUrl = window.location.pathname + (remainingQuery ? '?' + remainingQuery : '') + window.location.hash;
+			try {
+				window.history.replaceState(null, document.title, cleanedUrl);
+			} catch (e) {}
+		}
+
+		var fullTargetUrl = isValidTarget ? (window.location.origin + rawTarget) : '';
+
+		if (!isUserLoggedIn()) {
+			if (fullTargetUrl) {
+				setPendingDownloadUrl(fullTargetUrl);
+				saveScrollRestoreState(false, fullTargetUrl);
+			}
+			openGatekeeperModal('gatekeeper');
+			return true;
+		}
+
+		if (fullTargetUrl) {
+			processPendingDownload(fullTargetUrl);
+			return true;
+		}
+
+		return false;
+	}
+
 	$(document).on('click', '.dpc-mini-login-btn, [data-dpc-auth-trigger]', function(e) {
 		e.preventDefault();
 		openGatekeeperModal('auth');
@@ -1373,5 +1421,10 @@ jQuery(document).ready(function($) {
 	});
 
 	syncGatekeeperLanguage();
-	processPendingDownload(restoredScrollState && restoredScrollState.pendingDownloadUrl ? restoredScrollState.pendingDownloadUrl : '');
+	if (!handleGatewayRedirectParams()) {
+		var gkRuntime = getGatekeeperConfig();
+		if (gkRuntime && gkRuntime.enabled) {
+			processPendingDownload(restoredScrollState && restoredScrollState.pendingDownloadUrl ? restoredScrollState.pendingDownloadUrl : '');
+		}
+	}
 });

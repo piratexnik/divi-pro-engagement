@@ -29,6 +29,8 @@ final class Settings {
 		add_filter( 'plugin_action_links_' . DPC_BASENAME, [ $this, 'add_settings_action_link' ] );
 		add_action( 'admin_init', [ $this, 'handle_kksr_import' ] );
 		add_action( 'admin_notices', [ $this, 'render_kksr_import_notice' ] );
+		add_action( 'wp_ajax_dpc_dl_regenerate_htaccess', [ DownloadGatekeeper::class, 'handle_ajax_regenerate_htaccess' ] );
+		add_action( 'wp_ajax_dpc_dl_test_protection', [ DownloadGatekeeper::class, 'handle_ajax_test_protection' ] );
 	}
 
 	public function register_menu_page(): void {
@@ -122,6 +124,11 @@ final class Settings {
 						: '';
 					$parsed                 = DownloadGatekeeper::parse_extensions( $raw_exts );
 					$existing[ $field_key ] = implode( ',', $parsed );
+				} elseif ( 'dl_mode' === $field_type ) {
+					$raw_mode               = isset( $input_data[ $field_key ] )
+						? sanitize_key( wp_unslash( (string) $input_data[ $field_key ] ) )
+						: DownloadGatekeeper::DEFAULT_MODE;
+					$existing[ $field_key ] = DownloadGatekeeper::normalize_mode( $raw_mode );
 				} elseif ( 'email' === $field_type ) {
 					$raw_email = isset( $input_data[ $field_key ] )
 						? sanitize_email( wp_unslash( (string) $input_data[ $field_key ] ) )
@@ -1009,22 +1016,33 @@ final class Settings {
 	}
 
 	private function render_downloads_tab(): void {
+		$dl_protection_mode       = DownloadGatekeeper::normalize_mode( (string) dpc_get_option( 'dl_protection_mode', DownloadGatekeeper::DEFAULT_MODE ) );
 		$dl_protected_path        = (string) dpc_get_option( 'dl_protected_path', DownloadGatekeeper::DEFAULT_PATH );
 		$dl_extensions            = (string) dpc_get_option( 'dl_extensions', DownloadGatekeeper::DEFAULT_EXTENSIONS );
 		$dl_intercept_all_uploads = (int) dpc_get_option( 'dl_intercept_all_uploads', 0 );
 		$dl_htaccess_enable       = (int) dpc_get_option( 'dl_htaccess_enable', 0 );
 
-		$uploads      = wp_upload_dir();
-		$basedir      = isset( $uploads['basedir'] ) ? wp_normalize_path( (string) $uploads['basedir'] ) : '';
-		$clean_rel    = DownloadGatekeeper::normalize_relative_path( $dl_protected_path );
-		$target_dir   = '' !== $clean_rel && '' !== $basedir ? trailingslashit( $basedir ) . $clean_rel : '';
-		$dir_exists   = '' !== $target_dir && is_dir( $target_dir );
-		$htaccess     = $dir_exists ? trailingslashit( $target_dir ) . '.htaccess' : '';
-		$has_htaccess = '' !== $htaccess && file_exists( $htaccess ) && str_contains( (string) file_get_contents( $htaccess ), '# BEGIN DPC Download Gatekeeper' );
+		$status       = DownloadGatekeeper::get_htaccess_status( $dl_protected_path );
+		$clean_rel    = $status['clean_rel'];
+		$target_dir   = $status['target_dir'];
+		$dir_exists   = $status['dir_exists'];
+		$active_mode  = $status['active_mode'];
+		$mode_label   = $status['mode_label'];
+		$dl_nonce     = wp_create_nonce( 'dpc_dl_admin_nonce' );
+		$status_color = 'inactive' === $active_mode ? '#64748b' : '#059669';
 		?>
 		<div class="dpc-card">
 			<h2><?php echo esc_html__( 'Настройки Download Gatekeeper', 'divi-pro-engagement' ); ?></h2>
 			<p class="dpc-card-subtitle"><?php echo esc_html__( 'Ограничение скачивания документации и архивов для неавторизованных посетителей с автоматическим возвратом и запуском загрузки после входа.', 'divi-pro-engagement' ); ?></p>
+
+			<div class="dpc-input-row" style="margin-bottom: 16px;">
+				<label for="dl_protection_mode"><strong><?php echo esc_html__( 'Режим серверной защиты', 'divi-pro-engagement' ); ?></strong></label>
+				<select id="dl_protection_mode" name="dpc_settings[dl_protection_mode]" class="regular-text" style="max-width: 520px;">
+					<option value="gateway" <?php selected( 'gateway', $dl_protection_mode ); ?>><?php echo esc_html__( 'PHP-шлюз (рекомендуется) — проверка реальной сессии WP и редирект на модалку', 'divi-pro-engagement' ); ?></option>
+					<option value="htaccess_403" <?php selected( 'htaccess_403', $dl_protection_mode ); ?>><?php echo esc_html__( 'Быстрый 403 Apache — проверка куки wordpress_logged_in_ средствами Apache', 'divi-pro-engagement' ); ?></option>
+				</select>
+				<span class="description" style="color:#64748b; display:block; margin-top:4px;"><?php echo esc_html__( 'Режим «PHP-шлюз» защищает от подделки cookies, корректно отдаёт файлы с кириллицей/пробелами и при прямом заходе перенаправляет гостя на окно авторизации.', 'divi-pro-engagement' ); ?></span>
+			</div>
 
 			<div class="dpc-input-row">
 				<label for="dl_protected_path"><strong><?php echo esc_html__( 'Путь к защищаемой папке внутри /wp-content/uploads/', 'divi-pro-engagement' ); ?></strong></label>
@@ -1069,7 +1087,7 @@ final class Settings {
 			<div class="dpc-field-row">
 				<div class="dpc-field-label">
 					<strong><?php echo esc_html__( 'Включить серверную защиту от ботов и прямого скачивания через .htaccess в защищаемой папке', 'divi-pro-engagement' ); ?></strong>
-					<span><?php echo esc_html__( 'Автоматически управляет блоком правил Apache (# BEGIN DPC Download Gatekeeper) с запретом индексации и прямых GET-запросов без cookie авторизации WordPress.', 'divi-pro-engagement' ); ?></span>
+					<span><?php echo esc_html__( 'Автоматически управляет блоком правил Apache (# BEGIN DPC Download Gatekeeper) с запретом индексации, защитой самого .htaccess и перехватом прямых запросов.', 'divi-pro-engagement' ); ?></span>
 				</div>
 				<div class="dpc-field-input">
 					<?php $this->render_toggle( 'dl_htaccess_enable', $dl_htaccess_enable ); ?>
@@ -1090,11 +1108,102 @@ final class Settings {
 					</li>
 					<li>
 						<strong><?php echo esc_html__( 'Серверная защита .htaccess:', 'divi-pro-engagement' ); ?></strong>
-						<?php echo $has_htaccess ? '<span style="color:#059669;font-weight:600;">' . esc_html__( 'Активна (правила записаны)', 'divi-pro-engagement' ) . '</span>' : '<span style="color:#64748b;">' . esc_html__( 'Не активна', 'divi-pro-engagement' ) . '</span>'; ?>
+						<span id="dpc-dl-htaccess-status" style="color:<?php echo esc_attr( $status_color ); ?>;font-weight:600;"><?php echo esc_html( $mode_label ); ?></span>
 					</li>
 				</ul>
+
+				<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:14px;">
+					<button type="button" id="dpc-dl-regen-btn" class="button button-secondary" data-nonce="<?php echo esc_attr( $dl_nonce ); ?>">
+						<?php echo esc_html__( 'Пересоздать .htaccess', 'divi-pro-engagement' ); ?>
+					</button>
+					<button type="button" id="dpc-dl-test-btn" class="button button-secondary" data-nonce="<?php echo esc_attr( $dl_nonce ); ?>">
+						<?php echo esc_html__( 'Проверить защиту (Live-тест)', 'divi-pro-engagement' ); ?>
+					</button>
+				</div>
+
+				<div id="dpc-dl-action-result" style="display:none; margin-top:12px; padding:10px 12px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff; font-size:13px; line-height:1.45;"></div>
 			<?php endif; ?>
+
+			<p style="margin-top:14px; padding-top:12px; border-top:1px solid #e2e8f0; color:#475569; font-size:12.5px; line-height:1.5;">
+				<strong><?php echo esc_html__( 'Памятка для связки Nginx + Apache:', 'divi-pro-engagement' ); ?></strong>
+				<?php echo esc_html__( 'Если Nginx на хостинге отдаёт статические файлы напрямую в обход Apache, правила .htaccess не сработают (Live-тест покажет HTTP 200). В этом случае уберите защищаемые расширения (pdf, zip, rar, dwg, dxf, doc, docx, xls, xlsx, ppt, pptx) из списка «Статические файлы» Nginx в панели управления хостингом.', 'divi-pro-engagement' ); ?>
+			</p>
 		</div>
+
+		<script>
+		jQuery(document).ready(function($) {
+			var $result = $('#dpc-dl-action-result');
+			var $status = $('#dpc-dl-htaccess-status');
+
+			function showResult(type, text) {
+				var styles = {
+					ok:      { bg: '#ecfdf5', border: '#10b981', color: '#065f46' },
+					danger:  { bg: '#fef2f2', border: '#ef4444', color: '#991b1b' },
+					warning: { bg: '#fffbeb', border: '#f59e0b', color: '#92400e' }
+				};
+				var s = styles[type] || styles.warning;
+				$result.css({
+					backgroundColor: s.bg,
+					borderColor: s.border,
+					color: s.color
+				}).text(text).show();
+			}
+
+			$(document).on('click', '#dpc-dl-regen-btn', function(e) {
+				e.preventDefault();
+				var $btn = $(this);
+				if ($btn.prop('disabled')) {
+					return;
+				}
+				var origText = $btn.text();
+				$btn.prop('disabled', true).text('...');
+
+				$.post(ajaxurl, {
+					action: 'dpc_dl_regenerate_htaccess',
+					nonce: $btn.attr('data-nonce')
+				}).done(function(res) {
+					if (res && res.data && res.data.status) {
+						var st = res.data.status;
+						$status.text(st.mode_label).css('color', st.active_mode === 'inactive' ? '#64748b' : '#059669');
+					}
+					if (res && res.success) {
+						showResult('ok', (res.data && res.data.message) ? res.data.message : 'OK');
+					} else {
+						showResult('danger', (res && res.data && res.data.message) ? res.data.message : 'Error');
+					}
+				}).fail(function() {
+					showResult('danger', 'AJAX request failed.');
+				}).always(function() {
+					$btn.prop('disabled', false).text(origText);
+				});
+			});
+
+			$(document).on('click', '#dpc-dl-test-btn', function(e) {
+				e.preventDefault();
+				var $btn = $(this);
+				if ($btn.prop('disabled')) {
+					return;
+				}
+				var origText = $btn.text();
+				$btn.prop('disabled', true).text('...');
+
+				$.post(ajaxurl, {
+					action: 'dpc_dl_test_protection',
+					nonce: $btn.attr('data-nonce')
+				}).done(function(res) {
+					if (res && res.success && res.data) {
+						showResult(res.data.verdict || 'warning', res.data.message || '');
+					} else {
+						showResult('danger', (res && res.data && res.data.message) ? res.data.message : 'Error');
+					}
+				}).fail(function() {
+					showResult('danger', 'AJAX request failed.');
+				}).always(function() {
+					$btn.prop('disabled', false).text(origText);
+				});
+			});
+		});
+		</script>
 		<?php
 	}
 

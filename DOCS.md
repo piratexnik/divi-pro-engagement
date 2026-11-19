@@ -1,6 +1,6 @@
-# Divi Pro Engagement v2.2.4 — Техническая документация
+# Divi Pro Engagement v2.3.0 — Техническая документация
 
-Данный документ является полным техническим справочником архитектуры, API, мета-полей, шорткодов и настроек плагина `Divi Pro Engagement` (v2.2.4). Предназначен для разработчиков и ИИ-ассистентов для работы с проектом без необходимости полного сканирования кодовой базы.
+Данный документ является полным техническим справочником архитектуры, API, мета-полей, шорткодов и настроек плагина `Divi Pro Engagement` (v2.3.0). Предназначен для разработчиков и ИИ-ассистентов для работы с проектом без необходимости полного сканирования кодовой базы.
 
 ---
 
@@ -294,6 +294,7 @@ $args = [
 ### Вкладка 5: Защита файлов (`downloads`)
 | Ключ опции | Тип | Значение по умолчанию | Описание |
 | :--- | :--- | :--- | :--- |
+| `dl_protection_mode` | `string` | `'gateway'` | Режим серверной защиты: `'gateway'` (прозрачный PHP-шлюз с проверкой сессии WP и редиректом на модалку) или `'htaccess_403'` (быстрый 403 Apache по cookie). |
 | `dl_protected_path` | `string` | `'joomla-legacy/dmdocuments'` | Относительный путь к защищаемой папке внутри `/wp-content/uploads/`. Валидируется через `validate_file()`. |
 | `dl_extensions` | `string` | `'pdf,rar,zip,dwg,dxf,doc,docx,xls,xlsx'` | Список защищаемых расширений файлов через запятую. |
 | `dl_intercept_all_uploads` | `bool` | `0` (выключено) | Перехват указанных расширений во всей папке `/wp-content/uploads/` (кроме обычных изображений `.jpg/.png/.webp/...` вне `/dmdocuments/`). |
@@ -443,21 +444,20 @@ $args = [
 ---
 
 ### 4.6 Защита скачивания файлов (`DiviProEngagement\Modules\Downloads\DownloadGatekeeper`)
-1. **Серверная защита от ботов и прямого скачивания (`.htaccess`):**
-   - Метод `DownloadGatekeeper::sync_htaccess_rules()` вызывается при сохранении настроек на вкладках `general` и `downloads`.
-   - При активных `enable_download_gatekeeper` и `dl_htaccess_enable` и существовании директории внутри `wp_upload_dir()['basedir']` (с проверкой отсутствия `..` через `validate_file()` и `realpath()`) создается или обновляется блок `# BEGIN DPC Download Gatekeeper ... # END DPC Download Gatekeeper` с директивами `Options -Indexes`, `X-Robots-Tag "noindex, nofollow, noarchive"` и `RewriteRule` по cookie `wordpress_logged_in_` для расширений `dl_extensions`.
-   - При отключении одного из тумблеров или изменении пути маркерный блок аккуратно удаляется (пустой `.htaccess` удаляется автоматически).
-2. **Подключение ассетов и конфигурация (`dpcConfig.gatekeeper`):**
-   - При включении модуля `Init::enqueue_frontend_assets()` гарантированно подключает `frontend.css` и `frontend.js` на фронтенде (исключая режим конструктора Divi `Init::is_visual_builder_active()`), передавая через `wp_localize_script` объект `dpcConfig.gatekeeper` (`enabled`, `protectedPath`, `extensions`, `interceptAllUploads`, `uploadsUrl`, `isLoggedIn`, `i18n`).
-3. **Кеш-совместимый перехват кликов и авторизационная модалка:**
-   - Метод `render_modal_html()` выводит в `wp_footer` модальное окно `.dpc-gatekeeper-modal` с мультиязычными текстами (`uk` / `ru` / `en`, синхронизируются на клиенте по `<html lang="...">`) и кнопками входа через `AuthManager::get_instance()->render_auth_box('shortcode')` (или fallback-ссылкой `wp_login_url()`).
-   - JS-функция `isUserLoggedIn()` определяет статус авторизации на кешируемых страницах FlyingPress (`body.logged-in`, cookie `wordpress_logged_in_`, наличие `.dpc-user-logged` или `dpcConfig.gatekeeper.isLoggedIn`).
-   - Делегированный обработчик `a[href]` перехватывает клики гостей по ссылкам внутри `/{dl_protected_path}/` (или по защищаемым расширениям во всем `/wp-content/uploads/` при `dl_intercept_all_uploads`, исключая изображения `.jpg/.png/.webp/...` вне `/dmdocuments/`).
+1. **Серверная защита от ботов и прямого скачивания (`.htaccess` + прозрачный PHP-шлюз):**
+   - Метод `DownloadGatekeeper::sync_htaccess_rules()` вызывается при сохранении настроек на вкладках `general` и `downloads`, а также через AJAX-кнопку «Пересоздать .htaccess».
+   - Внутри блока `# BEGIN DPC Download Gatekeeper ... # END DPC Download Gatekeeper` всегда прописываются `Options -Indexes`, запрет чтения `.htaccess` (`<Files ".htaccess">` с совместимостью Apache 2.2 и 2.4) и `X-Robots-Tag "noindex, nofollow, noarchive"`.
+   - **Режим `'gateway'` (по умолчанию):** перенаправляет запросы к защищаемым расширениям в `/index.php?dpc_dl_gateway=1 [L,QSA,NC]` (базовый путь вычисляется через `home_url('/')`). Обработчик `handle_gateway_request()` на хуке `init` (приоритет `1`, не регистрируется при выключенном модуле) считывает `$_SERVER['REQUEST_URI']`, валидирует путь (защита от `..`, `\0`, dotfiles, проверка через `realpath()` и белый список `dl_extensions`).
+     - Для гостей: `302`-редирект на реферер (того же хоста, вне защищаемой папки) или главную (`pll_home_url()` / `home_url('/')`) с параметрами `?dpc_auth_required=1&dpc_dl_target=...`.
+     - Для авторизованных: потоковая отдача файла чанками по 1 МБ с `Content-Disposition: inline` (PDF/изображения) или `attachment` (архивы/CAD/офисные документы, ASCII-fallback + RFC 5987 `filename*=UTF-8''...`).
+   - **Режим `'htaccess_403'`:** быстрая проверка наличия cookie `wordpress_logged_in_` средствами Apache (`[F,L,NC]`).
+2. **Админ-инструменты диагностики (вкладка `Downloads`):**
+   - Отображение фактического активного режима по содержимому `.htaccess` (`Активна: PHP-шлюз`, `Активна: 403 Apache`, `Не активна`).
+   - AJAX-кнопки **«Пересоздать .htaccess»** (`dpc_dl_regenerate_htaccess`) и **«Проверить защиту (Live-тест)»** (`dpc_dl_test_protection` — `wp_remote_head` без кук и редиректов по первому найденному файлу с приоритетом `.pdf`), а также памятка по настройке Nginx + Apache.
+3. **Подключение ассетов, перехват кликов и обработка редиректа:**
+   - При включении модуля `Init::enqueue_frontend_assets()` подключает `frontend.css` и `frontend.js` (кроме Visual Builder) и передает `dpcConfig.gatekeeper`.
+   - При загрузке страницы `handleGatewayRedirectParams()` перехватывает `?dpc_auth_required=1&dpc_dl_target=...`, валидирует относительный путь (защита от Open Redirect), очищает URL через `history.replaceState()`, сохраняет цель в `sessionStorage` и открывает модалку входа гостю (или сразу запускает загрузку авторизованному пользователю на кешированной странице).
+   - Делегированный обработчик `a[href]` перехватывает клики гостей по ссылкам внутри `/{dl_protected_path}/` (или во всем `/wp-content/uploads/` при `dl_intercept_all_uploads`).
 4. **Авто-возобновление скачивания/просмотра и интеграция с `dpc_scroll_restore`:**
-   - URL файла сохраняется в `sessionStorage` (`dpc_pending_download_url`) и интегрируется в объект `dpc_scroll_restore`.
-   - После возврата авторизованного пользователя `restoreScrollPosition()` восстанавливает высоту скролла, а `processPendingDownload()`:
-     - Очищает `dpc_pending_download_url`.
-     - Находит оригинальную ссылку на странице (`targetLink`), подсвечивает её пульсирующей зеленой рамкой (`.dpc-download-ready`).
-     - Для архивов, чертежей и документов (`.rar, .zip, .dwg, .dxf, .doc, .docx, .xls, .xlsx`) инициирует загрузку через `window.location.assign(pendingUrl)`.
-     - Для нативно открываемых форматов (`pdf`, `jpg`, `jpeg`, `png`, `webp`, `gif`, `svg`) выполняет переход точно с поведением оригинальной ссылки (без принудительного атрибута `download`, учитывая `target="_blank"` через `window.open` либо переходя по `targetLink.click()`).
-     - Отображает чистое приветственное уведомление `.dpc-gatekeeper-toast` с зеленой галочкой `✓` («Спасибо за авторизацию! Загрузка началась.») с плавным автоматическим скрытием через 4.5 секунды.
+   - URL файла сохраняется в `sessionStorage` (`dpc_pending_download_url`) и интегрируется в `dpc_scroll_restore`.
+   - После возврата авторизованного пользователя `processPendingDownload()` очищает `dpc_pending_download_url`, подсвечивает оригинальную ссылку (`.dpc-download-ready`, если присутствует в DOM), открывает PDF/изображения нативно либо скачивает архивы/CAD через `window.location.assign()` и показывает приветственный тост `.dpc-gatekeeper-toast` с зеленой галочкой `✓` (авто-скрытие через 4.5 секунды).
